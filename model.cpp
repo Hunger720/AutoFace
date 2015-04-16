@@ -7,135 +7,193 @@ Model::Model(){
 	VertexNum = 0;
 	FaceNum = 0;
 	SUsNum = AUsNum = 0;
+	TexExist = false;
 };
 
 /////////////////////////////////////////////////////////////////////////////////////////////////
 void Model::open(const char *f){
 	int nVerts, nFaces;
-	char line[100];
-	char *title[] = {"# VERTEX LIST:", "# FACE LIST:", "# ANIMATION UNITS LIST:", "# SHAPE UNITS LIST:"};
-	string t0(title[0]), t1(title[1]), t2(title[2]), t3(title[3]);
+	int content = 0,            //数据的具体内容:1.顶点;2.平面;3.动态单元;4.静态单元;5.动态参数;6.静态参数;7.纹理数据;
+		te;
 
+	char line[100];
+	char *title[] = {"# END OF FILE","# VERTEX LIST:","# FACE LIST:","# ANIMATION UNITS LIST:","# SHAPE UNITS LIST:",
+					 "# ANIMATION PARAMETERS:","# SHAPE PARAMETERS:","# TEXTURE:"};
+
+	string *sname,*aname;
+	string t0(title[0]),    //文件结束标识
+		   t1(title[1]),    //顶点列表
+		   t2(title[2]),    //平面列表
+		   t3(title[3]),    //动态单元列表
+		   t4(title[4]),    //静态单元列表
+	       t5(title[5]),    //动态参数列表
+		   t6(title[6]),    //静态参数列表
+	       t7(title[7]);    //纹理坐标列表
+		   
 	M3DVector3f *vertex;
 	M3DVector3i *face;
 
 	ifstream file(f,ios::in);
 	if(file){
-		//读取Vertex数据
 		do{
 			file.getline(line,100);
-		}while(t0.compare(line));
 
-		file.getline(line,100);
-		nVerts = char2int(line);
+			if(!t1.compare(line))content = 1;  //读到顶点列表
+			if(!t2.compare(line))content = 2;  //读到平面列表
+			if(!t3.compare(line))content = 3;  //读到动态单元列表
+			if(!t4.compare(line))content = 4;  //读到静态单元列表
+			if(!t5.compare(line))content = 5;  //读到动态参数列表
+			if(!t6.compare(line))content = 6;  //读到静态参数列表
+			if(!t7.compare(line))content = 7;  //读到纹理坐标列表
 
-		vertex = new M3DVector3f[nVerts];
-		for(int i = 0; i < nVerts; i++){
-			file.getline(line,100);
-			char2vertex(line,vertex[i][0],vertex[i][1],vertex[i][2]);
-		}
-		copyVertexData(nVerts,vertex);
+			switch (content){
 
-		//读取Face数据
-		do{
-			file.getline(line,100);
-		}while(t1.compare(line));
+			case 1:                           //读入顶点列表
+				file.getline(line,100);
+				nVerts = char2int(line);
+				vertex = new M3DVector3f[nVerts];
+				for(int i = 0; i < nVerts; i++){
+					file.getline(line,100);
+					char2vertex(line,vertex[i][0],vertex[i][1],vertex[i][2]);
+				}
+				copyVertexData(nVerts,vertex);
+				content = 0;
+				break;
 
-		file.getline(line,100);
-		nFaces = char2int(line);
+			case 2:                           //读入平面列表
+				file.getline(line,100);
+				nFaces = char2int(line);
+				face = new M3DVector3i[nFaces];
+				for(int i = 0; i < nFaces; i++){
+					file.getline(line,100);
+					char2face(line,face[i][0],face[i][1],face[i][2]);
+				}
+				copyFaceData(nFaces,face);
+				content = 0;
+				break;
 
-		face = new M3DVector3i[nFaces];
-		for(int i = 0; i < nFaces; i++){
-			file.getline(line,100);
-			char2face(line,face[i][0],face[i][1],face[i][2]);
-		}
-		copyFaceData(nFaces,face);
-		
-		//读取AU数据
-		const char **AUsName;
-		int AUNum, nAU, *AUIndex;
-		M3DVector3f *AUStep;
-		Unit *AU;
-		string *name;
+			case 3:                           //读入动态单元列表
+				const char **AUsName;
+				int AUNum, nAU, *AUIndex;
+				M3DVector3f *AUStep;
+				Unit *AU;
 
-		do{
-			file.getline(line,100);
-		}while(t2.compare(line));
-		file.getline(line,100);
-		AUNum = char2int(line);
+				file.getline(line,100);
+				AUNum = char2int(line);
 				
-		AU = new Unit[AUNum];
-		AUsName = new const char*[AUNum];
-		name = new string[AUNum];
+				AU = new Unit[AUNum];
+				AUsName = new const char*[AUNum];
+				aname = new string[AUNum];
 
-		for(int i = 0; i < AUNum; i++){
-			do{
-				file.getline(line,100);
-			}while(line[0] != '#');
-			name[i].append(line);
-			AUsName[i] = name[i].data();
-			while(line[0] == '#')
-				file.getline(line,100);
-			nAU = char2int(line);
-			AUIndex = new int[nAU];
-			AUStep = new M3DVector3f[nAU];
+				for(int i = 0; i < AUNum; i++){
+					do{
+						file.getline(line,100);
+					}while(line[0] != '#');
+					aname[i].append(line);
+					AUsName[i] = aname[i].data();
+					while(line[0] == '#')
+						file.getline(line,100);
+					nAU = char2int(line);
+					AUIndex = new int[nAU];
+					AUStep = new M3DVector3f[nAU];
 			
-			AU[i].setNum(nAU);
-			for(int j = 0; j < nAU; j++){
+					AU[i].setNum(nAU);
+					for(int j = 0; j < nAU; j++){
+						file.getline(line,100);
+						char2UnitData(line,AUIndex[j],AUStep[j][0],AUStep[j][1],AUStep[j][2]);
+						AU[i].setIndex(j,AUIndex[j]);
+						AU[i].setStep(j,AUStep[j]);
+					}
+				}
+				copyAUsData(AUNum,AU);
+
+				//读取AUsName数据
+				for(int i = 0; i < AUNum; i++)
+					setAUsName(i,AUsName[i]);
+
+				content = 0;
+				break;
+
+			case 4:                           //读入静态单元列表
+				const char **SUsName;
+				int SUNum, nSU, *SUIndex;
+				M3DVector3f *SUStep;
+				Unit *SU;
+
 				file.getline(line,100);
-				char2UnitData(line,AUIndex[j],AUStep[j][0],AUStep[j][1],AUStep[j][2]);
-				AU[i].setIndex(j,AUIndex[j]);
-				AU[i].setStep(j,AUStep[j]);
-			}
-		}
-		copyAUsData(AUNum,AU);
-
-		//读取AUsName数据
-		for(int i = 0; i < AUNum; i++)
-			setAUsName(i,AUsName[i]);
-
-		//delete name;
-		//读取SU数据
-		const char **SUsName;
-		int SUNum, nSU, *SUIndex;
-		M3DVector3f *SUStep;
-		Unit *SU;
-
-		do{
-			file.getline(line,100);
-		}while(t3.compare(line));
-		file.getline(line,100);
-		SUNum = char2int(line);
+				SUNum = char2int(line);
 				
-		SU = new Unit[SUNum];
-		SUsName = new const char*[SUNum];
-		name = new string[SUNum];
+				SU = new Unit[SUNum];
+				SUsName = new const char*[SUNum];
+				sname = new string[SUNum];
 
-		for(int i = 0; i < SUNum; i++){
-			do{
-				file.getline(line,100);
-			}while(line[0] != '#');
-			name[i].append(line);
-			SUsName[i] = name[i].data();
-			while(line[0] == '#')
-				file.getline(line,100);
-			nSU = char2int(line);
-			SUIndex = new int[nSU];
-			SUStep = new M3DVector3f[nSU];
+				for(int i = 0; i < SUNum; i++){
+					do{
+						file.getline(line,100);
+					}while(line[0] != '#');
+					sname[i].append(line);
+					SUsName[i] = sname[i].data();
+					while(line[0] == '#')
+						file.getline(line,100);
+					nSU = char2int(line);
+					SUIndex = new int[nSU];
+					SUStep = new M3DVector3f[nSU];
 			
-			SU[i].setNum(nSU);
-			for(int j = 0; j < nSU; j++){
-				file.getline(line,100);
-				char2UnitData(line,SUIndex[j],SUStep[j][0],SUStep[j][1],SUStep[j][2]);
-				SU[i].setIndex(j,SUIndex[j]);
-				SU[i].setStep(j,SUStep[j]);
-			}
-		}
-		copySUsData(SUNum,SU);
+					SU[i].setNum(nSU);
+					for(int j = 0; j < nSU; j++){
+						file.getline(line,100);
+						char2UnitData(line,SUIndex[j],SUStep[j][0],SUStep[j][1],SUStep[j][2]);
+						SU[i].setIndex(j,SUIndex[j]);
+						SU[i].setStep(j,SUStep[j]);
+					}
+				}
+				copySUsData(SUNum,SU);
 
-		//读取SUsName数据
-		for(int i = 0; i < SUNum; i++)
-			setSUsName(i,SUsName[i]);
+				//读取SUsName数据
+				for(int i = 0; i < SUNum; i++)
+					setSUsName(i,SUsName[i]);
+
+				content = 0;
+				break;
+
+			case 5:
+				for(int i = 0; i < AUsNum; i++){
+					file.getline(line,100);
+					AP[i] = char2float(line);
+				}
+				content = 0;
+				break;
+
+			case 6:
+				for(int i = 0; i < SUsNum; i++){
+					file.getline(line,100);
+					SP[i] = char2float(line);
+				}
+				content = 0;
+				break;
+
+			case 7:                           //读纹理图片和纹理坐标
+				file.getline(line,100);
+				te = char2int(line);
+				if(te == 1){
+					TexExist = true;
+					file.getline(line,100);
+					string temp(line);
+					TexImage = temp.data();
+				}
+				else TexExist = false;
+
+				for(int i = 0; i < VertexNum; i++){
+					file.getline(line,100);
+					char2TexCoord(line,TexCoords[i][0],TexCoords[i][1]);
+				}
+				content = 0;
+				break;
+
+			default:;
+			}
+		}while(t0.compare(line));             //读到文件尾
+
 	}
 
 	file.close();
@@ -189,7 +247,28 @@ void Model::write(const char *f){
 			}
 			file<<endl;
 		}
+
+		//写入AP数据
+		file<<"# ANIMATION PARAMETERS:"<<endl;
+		for(int i = 0; i < AUsNum; i++)
+			file<<AP[i]<<endl;
 		file<<endl;
+
+		//写入SP数据
+		file<<"# SHAPE PARAMETERS:"<<endl;
+		for(int i = 0; i < SUsNum; i++)
+			file<<SP[i]<<endl;
+		file<<endl;
+
+		//写入纹理坐标数据
+		file<<"# TEXTURE:"<<endl;
+		if(TexExist)file<<1<<endl<<TexImage<<endl;
+		else file<<0<<endl;
+		for(int i = 0; i < VertexNum; i++)
+			file<<TexCoords[i][0]<<' '<<TexCoords[i][1]<<endl;
+		file<<endl;
+
+		file<<"# END OF FILE";
 	}
 
 	file.close();
@@ -248,9 +327,15 @@ void Model::copyAPsData(int apnum, float *aps){
 			AP[i] = aps[i];
 }
 
-//bool Model::loadTexImage(const char *file){
-//	return image.open(file);
-//}
+bool Model::loadTexImage(const char *f){
+	ifstream file(f,ios::in);
+	if(file){
+		TexImage = f;
+		TexExist = true;
+	}else TexExist = false;
+
+	return TexExist;
+}
 
 
 //////////////////////////////////////////////////////////////////////////////////////////////////
@@ -433,32 +518,81 @@ void Model::setAP(int n, float ap){
 	if(n<AUsNum) AP[n] = ap;
 }
 
+//void Model::addSP(int n, float sp){
+//	if(n<SUsNum) SP[n] += sp;
+//}
+//
+//void Model::addAP(int n, float ap){
+//	if(n<AUsNum) AP[n] += ap;
+//}
+
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////
-void Model::applySP(int n){
+void Model::addSP(int n, float sp){
 	if(n<SUsNum){
+		SP[n] += sp;
 		M3DVector3f result, orignal, step;
 		for(int j = 0; j < SU[n].getNum(); j++){
 			getTransCoords(SU[n].getIndex(j), orignal);
 			SU[n].getStep(j,step);
-			step[0] *= SP[n]; step[1] *= SP[n]; step[2] *= SP[n];
+			step[0] *= sp; step[1] *= sp; step[2] *= sp;
 			m3dAddVectors3(result, orignal, step);
 			setTransCoords(SU[n].getIndex(j), result);
 		}
 	}
 }
 
-void Model::applyAP(int n){
+void Model::addAP(int n, float ap){
 	if(n<AUsNum){
-	M3DVector3f result, orignal, step;
+		AP[n] += ap;
+		M3DVector3f result, orignal, step;
 		for(int j = 0; j < AU[n].getNum(); j++){
 			getTransCoords(AU[n].getIndex(j), orignal);
 			AU[n].getStep(j,step);
-			step[0] *= AP[n]; step[1] *= AP[n]; step[2] *= AP[n];
+			step[0] *= ap; step[1] *= ap; step[2] *= ap;
 			m3dAddVectors3(result, orignal, step);
 			setTransCoords(AU[n].getIndex(j), result);
 		}
 	}
+}
+
+void Model::applySP(){
+	M3DVector3f result, orignal, step;
+	for(int i = 0; i < SUsNum; i++)
+		for(int j = 0; j < SU[i].getNum(); j++){
+			getTransCoords(SU[i].getIndex(j), orignal);
+			SU[i].getStep(j,step);
+			step[0] *= SP[i]; step[1] *= SP[i]; step[2] *= SP[i];;
+			m3dAddVectors3(result, orignal, step);
+			setTransCoords(SU[i].getIndex(j), result);
+		}
+}
+
+void Model::applyAP(){
+	M3DVector3f result, orignal, step;
+	for(int i = 0; i < AUsNum; i++)
+		for(int j = 0; j < AU[i].getNum(); j++){
+			getTransCoords(AU[i].getIndex(j), orignal);
+			AU[i].getStep(j,step);
+			step[0] *= AP[i]; step[1] *= AP[i]; step[2] *= AP[i];
+			m3dAddVectors3(result, orignal, step);
+			setTransCoords(AU[i].getIndex(j), result);
+		}
+}
+
+/////////////////////////////////////////////////////////////////////////////////
+void Model::clearAP(){
+	M3DVector3f result, orignal, step;
+
+	for(int i = 0; i < AUsNum; i++)
+		setAP(i,0);
+
+	for(int j = 0; j < VertexNum; j++){
+		getVertex(j, orignal);
+		setTransCoords(j, orignal);
+	}
+
+	applySP();
 }
 
 //void Model::updateModel(){

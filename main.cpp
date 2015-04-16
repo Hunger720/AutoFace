@@ -59,12 +59,14 @@ int    nStep = 0;
 int    menu = 0;
 int    nSP = 0;
 int    nAP = 0;
-int    bgswitch = 0;
-int    wfswitch = 0;
+int    bgswitch = 1;    //背景图片显示开关
+int    wfswitch = 1;    //线框模型显示开关
 
 //float ap = 0;
 float winWidth;
 float winHeight;
+
+const char *teximage = "C:\\Users\\HG\\Desktop\\pic\\tamakin.jpg";
 
 int clockwise(M3DVector3f v0, M3DVector3f v1, M3DVector3f v2){
 	M3DVector3f vect0, vect1, result;
@@ -107,7 +109,7 @@ void SetupRC()
 
 	transformPipeline.SetMatrixStacks(modelViewMatrix, projectionMatrix);
 
-	glEnable(GL_DEPTH);
+	glEnable(GL_DEPTH_TEST);
 	glEnable(GL_CULL_FACE);
 
 	objectFrame = new GLFrame;
@@ -120,8 +122,8 @@ void SetupRC()
 	//loadBackgroundTex("C:\\Users\\HG\\Desktop\\pic\\huang.jpg");
 	//loadBackgroundTex("C:\\Users\\HG\\Desktop\\pic\\yuki.jpg");
 	//loadBackgroundTex("C:\\Users\\HG\\Desktop\\pic\\8.jpg");
-	//loadBackgroundTex("C:\\Users\\HG\\Desktop\\pic\\yamap.jpg");
-	loadBackgroundTex("C:\\Users\\HG\\Desktop\\pic\\tamakin.jpg",winWidth,winHeight);
+	//loadTexImage("C:\\Users\\HG\\Desktop\\pic\\yamap.jpg",winWidth,winHeight);
+	Image2Tex(teximage,winWidth,winHeight);    //加载背景图片
 	//loadBackgroundTex("C:\\Users\\HG\\Desktop\\pic\\chiyaki.jpeg");
 	//loadBackgroundTex("C:\\Users\\HG\\Desktop\\pic\\tomo.jpg");
 
@@ -134,18 +136,18 @@ void SetupRC()
 	//Background Texture
 	bgBatch.Begin(GL_TRIANGLES,6,1);
 	bgBatch.MultiTexCoord2f(0,0.0f,0.0f);
-    bgBatch.Vertex3f(-x,y,0.0f);
+    bgBatch.Vertex3f(-x,y,-.5f);
 	bgBatch.MultiTexCoord2f(0,0.0f,1.0f);
-    bgBatch.Vertex3f(-x,-y,0.0f);
+    bgBatch.Vertex3f(-x,-y,-.5f);
 	bgBatch.MultiTexCoord2f(0,1.0f,0.0f);
-    bgBatch.Vertex3f(x,y,0.0f);
+    bgBatch.Vertex3f(x,y,-.5f);
 	
 	bgBatch.MultiTexCoord2f(0,0.0f,1.0f);
-    bgBatch.Vertex3f(-x,-y,0.0f);
+    bgBatch.Vertex3f(-x,-y,-.5f);
 	bgBatch.MultiTexCoord2f(0,1.0f,1.0f);
-    bgBatch.Vertex3f(x,-y,0.0f);
+    bgBatch.Vertex3f(x,-y,-.5f);
 	bgBatch.MultiTexCoord2f(0,1.0f,0.0f);
-    bgBatch.Vertex3f(x,y,0.0f);
+    bgBatch.Vertex3f(x,y,-.5f);
 	bgBatch.End();
 
 	//////////////////////////////////////////////////////////////////////
@@ -153,8 +155,11 @@ void SetupRC()
 	nFaces = candide3.nFace();
 
 	Verts = new GLfloat[nVerts*3];
+
+	candide3.applySP();
+	candide3.applyAP();
 	for (int i = 0; i<nVerts; i++){
-		candide3.getVertex(i,Vert);
+		candide3.getTransCoords(i,Vert);
 		Verts[i*3+0] = Vert[0], Verts[i*3+1] = Vert[1], Verts[i*3+2] = Vert[2];
 	}
 
@@ -172,53 +177,7 @@ void RenderScene(void)
 	// Clear the window with current clearing color
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 
-	//每次渲染三角形前调整环绕方向
-	for (int i = 0; i<nFaces; i++){
-		Face[0][0] = Verts[Faces[i][0]*3+0];
-		Face[0][1] = Verts[Faces[i][0]*3+1];
-		Face[0][2] = Verts[Faces[i][0]*3+2];
-
-		Face[1][0] = Verts[Faces[i][1]*3+0];
-		Face[1][1] = Verts[Faces[i][1]*3+1];
-		Face[1][2] = Verts[Faces[i][1]*3+2];
-
-		Face[2][0] = Verts[Faces[i][2]*3+0];
-		Face[2][1] = Verts[Faces[i][2]*3+1];
-		Face[2][2] = Verts[Faces[i][2]*3+2];
-
-		if(clockwise(Face[0],Face[1],Face[2])>=0){
-			int temp;
-			temp = Faces[i][0];
-			Faces[i][0] = Faces[i][1];
-			Faces[i][1] = temp;
-		}
-	}
-
-	//////////////////////////////////////////////////////////
-	delete wireframeBatch;
-	wireframeBatch = NULL;
-	wireframeBatch = new GLBatch;
-	wireframeBatch->Begin(GL_TRIANGLES, nFaces*3);
-	for(int i = 0;i<nFaces; i++){
-		wireframeBatch->Vertex3f(Verts[Faces[i][0]*3+0],Verts[Faces[i][0]*3+1],Verts[Faces[i][0]*3+2]);
-		wireframeBatch->Vertex3f(Verts[Faces[i][1]*3+0],Verts[Faces[i][1]*3+1],Verts[Faces[i][1]*3+2]);
-		wireframeBatch->Vertex3f(Verts[Faces[i][2]*3+0],Verts[Faces[i][2]*3+1],Verts[Faces[i][2]*3+2]);
-	};
-	wireframeBatch->End();
-	/////////////////////////////////////////////////////////
-	delete facesBatch;
-	facesBatch = NULL;
-	facesBatch = new GLBatch;
-	facesBatch->Begin(GL_TRIANGLES, nFaces*3,1);  
-	for(int i = 0; i < nFaces; i++){
-		for(int j = 0; j < 3; j++){
-			candide3.getTexCoords(Faces[i][j],texcoords[j][0],texcoords[j][1]);
-			facesBatch->MultiTexCoord2f(0,texcoords[j][0],texcoords[j][1]);
-			//cout<<texcoords[0]<<'\t'<<texcoords[1]<<endl;
-			facesBatch->Vertex3f(Verts[Faces[i][j]*3+0],Verts[Faces[i][j]*3+1],Verts[Faces[i][j]*3+2]);
-		}
-	}
-	facesBatch->End();
+	
 
 	modelViewMatrix.PushMatrix();
 
@@ -231,6 +190,68 @@ void RenderScene(void)
 		objectFrame->GetMatrix(mObjectFrame);
 		modelViewMatrix.MultMatrix(mObjectFrame);
 		modelViewMatrix.MultMatrix(scaler);
+
+	/*	M3DMatrix44f m;
+		m3dLoadIdentity44(m);*/
+		M3DVector3f t[3];
+
+		//每次渲染三角形前调整环绕方向
+		for (int i = 0; i<nFaces; i++){
+			Face[0][0] = Verts[Faces[i][0]*3+0];
+			Face[0][1] = Verts[Faces[i][0]*3+1];
+			Face[0][2] = Verts[Faces[i][0]*3+2];
+
+			Face[1][0] = Verts[Faces[i][1]*3+0];
+			Face[1][1] = Verts[Faces[i][1]*3+1];
+			Face[1][2] = Verts[Faces[i][1]*3+2];
+
+			Face[2][0] = Verts[Faces[i][2]*3+0];
+			Face[2][1] = Verts[Faces[i][2]*3+1];
+			Face[2][2] = Verts[Faces[i][2]*3+2];
+
+			/*m3dTransformVector3(t[0], Face[0], transformPipeline.GetModelViewMatrix());
+			m3dTransformVector3(t[1], Face[1], transformPipeline.GetModelViewMatrix());
+			m3dTransformVector3(t[2], Face[2], transformPipeline.GetModelViewMatrix());
+
+			if(clockwise(t[0],t[1],t[2])>=0){
+				int temp;
+				temp = Faces[i][0];
+				Faces[i][0] = Faces[i][1];
+				Faces[i][1] = temp;
+			}*/
+			if(clockwise(Face[0],Face[1],Face[2])>=0){
+				int temp;
+				temp = Faces[i][0];
+				Faces[i][0] = Faces[i][1];
+				Faces[i][1] = temp;
+			}
+		}
+
+		//////////////////////////////////////////////////////////
+		delete wireframeBatch;
+		wireframeBatch = NULL;
+		wireframeBatch = new GLBatch;
+		wireframeBatch->Begin(GL_TRIANGLES, nFaces*3);
+		for(int i = 0;i<nFaces; i++){
+			wireframeBatch->Vertex3f(Verts[Faces[i][0]*3+0],Verts[Faces[i][0]*3+1],Verts[Faces[i][0]*3+2]);
+			wireframeBatch->Vertex3f(Verts[Faces[i][1]*3+0],Verts[Faces[i][1]*3+1],Verts[Faces[i][1]*3+2]);
+			wireframeBatch->Vertex3f(Verts[Faces[i][2]*3+0],Verts[Faces[i][2]*3+1],Verts[Faces[i][2]*3+2]);
+		};
+		wireframeBatch->End();
+		/////////////////////////////////////////////////////////
+		delete facesBatch;
+		facesBatch = NULL;
+		facesBatch = new GLBatch;
+		facesBatch->Begin(GL_TRIANGLES, nFaces*3,1);  
+		for(int i = 0; i < nFaces; i++){
+			for(int j = 0; j < 3; j++){
+				candide3.getTexCoords(Faces[i][j],texcoords[j][0],texcoords[j][1]);
+				facesBatch->MultiTexCoord2f(0,texcoords[j][0],texcoords[j][1]);
+				//cout<<texcoords[0]<<'\t'<<texcoords[1]<<endl;
+				facesBatch->Vertex3f(Verts[Faces[i][j]*3+0],Verts[Faces[i][j]*3+1],Verts[Faces[i][j]*3+2]);
+			}
+		}
+		facesBatch->End();
 
 		shaderManager.UseStockShader(GLT_SHADER_FLAT, transformPipeline.GetModelViewProjectionMatrix(), vWhite);
 
@@ -348,15 +369,15 @@ void KeyPressFunc(unsigned char key, int x, int y)
 			m3dMatrixMultiply44(scaler,scaler,s);
 			break;
 		case 1:
-			candide3.setSP(nSP,0.1);
-			candide3.applySP(nSP);
+			candide3.addSP(nSP,0.1);
+			//candide3.applySP(nSP);
 			break;
 		case 2:
 			/*ap += 0.5;
 			candide3.setAP(0,ap);
 			candide3.applyAP();*/
-			candide3.setAP(nAP,0.1);
-			candide3.applyAP(nAP);
+			candide3.addAP(nAP,0.1);
+			//candide3.applyAP(nAP);
 			break;
 		}
 		for (int i = 0; i < nVerts; i++){
@@ -374,15 +395,15 @@ void KeyPressFunc(unsigned char key, int x, int y)
 			m3dMatrixMultiply44(scaler,scaler,s);
 			break;
 		case 1:
-			candide3.setSP(nSP,-0.1);
-			candide3.applySP(nSP);
+			candide3.addSP(nSP,-0.1);
+			//candide3.applySP(nSP);
 			break;
 		case 2:
 			/*ap -= 0.5;
 			candide3.setAP(0,ap);
 			candide3.applyAP();*/
-			candide3.setAP(nAP,-0.1);
-			candide3.applyAP(nAP);
+			candide3.addAP(nAP,-0.1);
+			//candide3.applyAP(nAP);
 			break;
 		}
 		for (int i = 0; i < nVerts; i++){
@@ -391,12 +412,12 @@ void KeyPressFunc(unsigned char key, int x, int y)
 		}
 	}
 
-	//清零
+	//清零,回到标准Candide-3模型
 	if(key == 48){
 		for (int i = 0; i<nVerts; i++){
 			candide3.getVertex(i,Vert);
-			Verts[i*3+0] = Vert[0], Verts[i*3+1] = Vert[1], Verts[i*3+2] = Vert[2];
 			candide3.setTransCoords(i,Vert);
+			Verts[i*3+0] = Vert[0], Verts[i*3+1] = Vert[1], Verts[i*3+2] = Vert[2];			
 		}
 		m3dScaleMatrix44(scaler, 1, 1, 1);
 		delete objectFrame; objectFrame = NULL;
@@ -414,14 +435,14 @@ void KeyPressFunc(unsigned char key, int x, int y)
 		m3dScaleMatrix44(scaler, 1, 1, 1);
 		delete objectFrame; objectFrame = NULL;
 		objectFrame = new GLFrame;
-		for(int i = 0; i < candide3.nAUs(); i++){
-			candide3.setAP(i,0);
-			//candide3.applyAP(i);
-		}
-		/*for (int i = 0; i<nVerts; i++){
+
+		candide3.clearAP();
+
+		for (int i = 0; i<nVerts; i++){
 			candide3.getTransCoords(i,Vert);
 			Verts[i*3+0] = Vert[0], Verts[i*3+1] = Vert[1], Verts[i*3+2] = Vert[2];
-		}*/
+		}
+
 	}
                 
     glutPostRedisplay();
@@ -429,7 +450,18 @@ void KeyPressFunc(unsigned char key, int x, int y)
 
 ///////////////////////////////////////////////////////////////////////////////
 void ProcessMainMenu(int value){
-	menu = value;
+	switch (value){
+	case 0:
+		menu = value;
+		break;
+	case 1:
+		candide3.loadTexImage("teximage");
+		break;
+	case 2:
+		candide3.write("C:\\Users\\HG\\Desktop\\pic\\tamakin.wfm");
+		break;
+	default:;
+	}
 }
 
 void ProcessSUMenu(int value){
@@ -475,7 +507,8 @@ int main(int argc, char* argv[])
 	gltSetWorkingDirectory(argv[0]);
 	
 	glutInit(&argc, argv);
-	glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGBA | GLUT_DEPTH | GLUT_STENCIL);
+	//glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGBA | GLUT_DEPTH | GLUT_STENCIL);
+	glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGBA | GLUT_DEPTH);
 	glutInitWindowSize(500, 500);
 	glutCreateWindow("Candide3");
     glutReshapeFunc(ChangeSize);
@@ -483,8 +516,9 @@ int main(int argc, char* argv[])
     glutSpecialFunc(SpecialKeys);
     glutDisplayFunc(RenderScene);
 
-	//candide3.open("C:\\Users\\HG\\Desktop\\pic\\candide31.wfm");
-	candide3.open("C:\\Users\\HG\\Desktop\\pic\\temp.wfm");
+	//candide3.open("C:\\Users\\HG\\Desktop\\pic\\candide3.wfm");
+	//candide3.open("C:\\Users\\HG\\Desktop\\pic\\temp.wfm");
+	candide3.open("C:\\Users\\HG\\Desktop\\pic\\tamakin.wfm");
 	//candide3.write("C:\\Users\\HG\\Desktop\\pic\\temp.wfm");
 	//makeAUs(candide3);
 
@@ -513,6 +547,8 @@ int main(int argc, char* argv[])
 	glutAddSubMenu("Change AU",AUMenu);
 	glutAddSubMenu("Background",BGMenu);
 	glutAddSubMenu("WireFrame",WFMenu);
+	glutAddMenuEntry("Load Texture Image",1);
+	glutAddMenuEntry("Save Model",2);
 
     glutAttachMenu(GLUT_RIGHT_BUTTON);
     ////////////////////////////////////////////////////////////   
@@ -526,5 +562,6 @@ int main(int argc, char* argv[])
 	SetupRC();
 
 	glutMainLoop();
+
 	return 0;
 	}
