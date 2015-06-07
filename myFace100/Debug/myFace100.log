@@ -1,0 +1,49 @@
+﻿Build started 2015/6/6 18:24:08.
+     1>Project "C:\Users\HG\documents\visual studio 2010\Projects\myFace100\myFace100\myFace100.vcxproj" on node 2 (build target(s)).
+     1>InitializeBuildStatus:
+         Creating "Debug\myFace100.unsuccessfulbuild" because "AlwaysCreate" was specified.
+       ClCompile:
+         C:\Program Files (x86)\Microsoft Visual Studio 10.0\VC\bin\CL.exe /c /I"D:\Program Files\opencv\opencv\build\include" /ID:\OpenGL\SB5\Src\GLTools\include /ZI /nologo /W3 /WX- /Od /Oy- /D WIN32 /D _DEBUG /D _CONSOLE /D _UNICODE /D UNICODE /Gm /EHsc /RTC1 /MDd /GS /fp:precise /Zc:wchar_t /Zc:forScope /Fo"Debug\\" /Fd"Debug\vc100.pdb" /Gd /TP /analyze- /errorReport:prompt main.cpp
+         main.cpp
+     1>c:\users\hg\documents\visual studio 2010\projects\myface100\myface100\image.h(11): warning C4996: 'fopen': This function or variable may be unsafe. Consider using fopen_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details.
+                 c:\program files (x86)\microsoft visual studio 10.0\vc\include\stdio.h(234) : see declaration of 'fopen'
+     1>c:\users\hg\documents\visual studio 2010\projects\myface100\myface100\image.h(66): warning C4244: '=' : conversion from 'int' to 'float', possible loss of data
+     1>c:\users\hg\documents\visual studio 2010\projects\myface100\myface100\image.h(66): warning C4244: '=' : conversion from 'int' to 'float', possible loss of data
+     1>c:\users\hg\documents\visual studio 2010\projects\myface100\myface100\main.cpp(170): warning C4018: '<' : signed/unsigned mismatch
+     1>c:\users\hg\documents\visual studio 2010\projects\myface100\myface100\main.cpp(176): warning C4018: '<' : signed/unsigned mismatch
+     1>c:\users\hg\documents\visual studio 2010\projects\myface100\myface100\main.cpp(208): warning C4018: '<' : signed/unsigned mismatch
+     1>c:\users\hg\documents\visual studio 2010\projects\myface100\myface100\main.cpp(244): warning C4018: '<' : signed/unsigned mismatch
+     1>c:\users\hg\documents\visual studio 2010\projects\myface100\myface100\main.cpp(255): warning C4018: '<' : signed/unsigned mismatch
+     1>c:\users\hg\documents\visual studio 2010\projects\myface100\myface100\main.cpp(205): warning C4101: 't' : unreferenced local variable
+     1>c:\users\hg\documents\visual studio 2010\projects\myface100\myface100\main.cpp(346): warning C4018: '<' : signed/unsigned mismatch
+     1>c:\users\hg\documents\visual studio 2010\projects\myface100\myface100\main.cpp(387): warning C4018: '<' : signed/unsigned mismatch
+     1>c:\users\hg\documents\visual studio 2010\projects\myface100\myface100\main.cpp(413): warning C4018: '<' : signed/unsigned mismatch
+     1>c:\users\hg\documents\visual studio 2010\projects\myface100\myface100\main.cpp(421): warning C4018: '<' : signed/unsigned mismatch
+     1>c:\users\hg\documents\visual studio 2010\projects\myface100\myface100\main.cpp(445): warning C4018: '<' : signed/unsigned mismatch
+     1>c:\users\hg\documents\visual studio 2010\projects\myface100\myface100\main.cpp(476): warning C4101: 't2' : unreferenced local variable
+     1>c:\users\hg\documents\visual studio 2010\projects\myface100\myface100\main.cpp(476): warning C4101: 't1' : unreferenced local variable
+     1>c:\users\hg\documents\visual studio 2010\projects\myface100\myface100\main.cpp(541): warning C4018: '<' : signed/unsigned mismatch
+     1>c:\users\hg\documents\visual studio 2010\projects\myface100\myface100\image.h(44): warning C4715: 'Image::genTexData' : not all control paths return a value
+         All outputs are up-to-date.
+       Link:
+         C:\Program Files (x86)\Microsoft Visual Studio 10.0\VC\bin\link.exe /ERRORREPORT:PROMPT /OUT:"C:\Users\HG\documents\visual studio 2010\Projects\myFace100\Debug\myFace100.exe" /INCREMENTAL /NOLOGO /LIBPATH:"D:\Program Files\opencv\opencv\build\x86\vc10\lib" opencv_core2410d.lib opencv_imgproc2410d.lib opencv_highgui2410d.lib opencv_ml2410d.lib opencv_video2410d.lib opencv_features2d2410d.lib opencv_calib3d2410d.lib opencv_objdetect2410d.lib opencv_contrib2410d.lib opencv_legacy2410d.lib opencv_flann2410d.lib kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib /MANIFEST /ManifestFile:"Debug\myFace100.exe.intermediate.manifest" /MANIFESTUAC:"level='asInvoker' uiAccess='false'" /DEBUG /PDB:"C:\Users\HG\documents\visual studio 2010\Projects\myFace100\Debug\myFace100.pdb" /SUBSYSTEM:CONSOLE /TLBID:1 /DYNAMICBASE /NXCOMPAT /IMPLIB:"C:\Users\HG\documents\visual studio 2010\Projects\myFace100\Debug\myFace100.lib" /MACHINE:X86 Debug\candide3.obj
+         Debug\GLBatch.obj
+         Debug\glew.obj
+         Debug\GLShaderManager.obj
+         Debug\GLTools.obj
+         Debug\GLTriangleBatch.obj
+         Debug\math3d.obj
+         Debug\io.obj
+         Debug\main.obj
+         Debug\model.obj
+         myFace100.vcxproj -> C:\Users\HG\documents\visual studio 2010\Projects\myFace100\Debug\myFace100.exe
+       Manifest:
+         C:\Program Files (x86)\Microsoft SDKs\Windows\v7.0A\bin\mt.exe /nologo /verbose /out:"C:\Users\HG\documents\visual studio 2010\Projects\myFace100\Debug\myFace100.exe.manifest" /manifest Debug\myFace100.exe.intermediate.manifest
+       FinalizeBuildStatus:
+         Deleting file "Debug\myFace100.unsuccessfulbuild".
+         Touching "Debug\myFace100.lastbuildstate".
+     1>Done Building Project "C:\Users\HG\documents\visual studio 2010\Projects\myFace100\myFace100\myFace100.vcxproj" (build target(s)).
+
+Build succeeded.
+
+Time Elapsed 00:00:09.82
