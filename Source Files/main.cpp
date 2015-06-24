@@ -76,7 +76,7 @@ float  s;               //人脸缩放因子
 point  t;               //人脸位移偏量
 point  ffp[ffpNum];             //人脸特征点
 
-const char *teximage = "C:\\Users\\HG\\Desktop\\pic\\tamakin.jpg";
+const char *teximage = "C:\\Users\\Hkling\\Desktop\\tamakin.jpg";
 //const char *teximage = "C:\\Users\\HG\\Desktop\\pic\\tomo.jpg";
 //const char *teximage = "C:\\Users\\HG\\Desktop\\pic\\yamap.jpg";
 
@@ -145,18 +145,18 @@ void SetupRC()
 	//Background Texture
 	bgBatch.Begin(GL_TRIANGLES,6,1);
 	bgBatch.MultiTexCoord2f(0,0.0f,0.0f);
-    bgBatch.Vertex3f(-x,y,-.5f);
+    bgBatch.Vertex3f(-x,y,-1.9);
 	bgBatch.MultiTexCoord2f(0,0.0f,1.0f);
-    bgBatch.Vertex3f(-x,-y,-.5f);
+    bgBatch.Vertex3f(-x,-y,-1.9);
 	bgBatch.MultiTexCoord2f(0,1.0f,0.0f);
-    bgBatch.Vertex3f(x,y,-.5f);
+    bgBatch.Vertex3f(x,y,-1.9);
 	
 	bgBatch.MultiTexCoord2f(0,0.0f,1.0f);
-    bgBatch.Vertex3f(-x,-y,-.5f);
+    bgBatch.Vertex3f(-x,-y,-1.9);
 	bgBatch.MultiTexCoord2f(0,1.0f,1.0f);
-    bgBatch.Vertex3f(x,-y,-.5f);
+    bgBatch.Vertex3f(x,-y,-1.9);
 	bgBatch.MultiTexCoord2f(0,1.0f,0.0f);
-    bgBatch.Vertex3f(x,y,-.5f);
+    bgBatch.Vertex3f(x,y,-1.9);
 	bgBatch.End();
 
 	//////////////////////////////////////////////////////////////////////
@@ -464,7 +464,7 @@ void ProcessMainMenu(int value){
 		candide3.loadTexImage("teximage");
 		break;
 	case 2:
-		candide3.write("C:\\Users\\HG\\Desktop\\pic\\candide3.wfm");
+		candide3.write("C:\\Users\\Hkling\\Desktop\\tamakin.wfm");
 		break;
 	case 3:
 		ffpcount = ffpNum;
@@ -542,7 +542,7 @@ void processMouse(int button, int state, int x, int y){
 				t[0] = Verts[i*3+0];
 				t[1] = Verts[i*3+1];
 				t[2] = Verts[i*3+2];
-				if(findVertex(mouse[0],mouse[1],t))cout<<i<<endl;
+				if(findVertex(mouse[0],mouse[1],t))cout<<"vertex "<<i<<endl;
 			}
 		}else{
 			ffpcount--;
@@ -565,10 +565,10 @@ void ChangeSize(int w, int h)
 	glViewport(0, 0, w, h);
 	if(w>=h){
 		ratio = a/b;
-		viewFrustum.SetOrthographic(-ratio,ratio,-1,1,-1.0f,1.0f);
+		viewFrustum.SetOrthographic(-ratio,ratio,-1,1,-2.0f,2.0f);
 	}else{
 		ratio = b/a;
-		viewFrustum.SetOrthographic(-1,1,-ratio,ratio,-1.0f,1.0f);
+		viewFrustum.SetOrthographic(-1,1,-ratio,ratio,-2.0f,2.0f);
 	}
 	projectionMatrix.LoadMatrix(viewFrustum.GetProjectionMatrix());
 	modelViewMatrix.LoadIdentity();
@@ -590,9 +590,9 @@ int main(int argc, char* argv[])
     glutSpecialFunc(SpecialKeys);
     glutDisplayFunc(RenderScene);
 
-	//candide3.open("C:\\Users\\HG\\Desktop\\pic\\candide3.wfm");
+	candide3.open("C:\\Users\\Hkling\\Desktop\\candide3.wfm");
 	//candide3.open("C:\\Users\\HG\\Desktop\\pic\\temp.wfm");
-	candide3.open("C:\\Users\\HG\\Desktop\\pic\\tamakin.wfm");
+	//candide3.open("C:\\Users\\Hkling\\Desktop\\tamakin.wfm");
 	//candide3.write("C:\\Users\\HG\\Desktop\\pic\\temp.wfm");
 	//makeAUs(candide3);
 
