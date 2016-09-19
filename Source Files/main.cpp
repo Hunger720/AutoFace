@@ -3,6 +3,9 @@
 // Demonstrates the 7 Geometric Primitives
 // Program by Richard S. Wright Jr.
 
+#include "clockwise.h"
+#include "meshEditor.h"
+
 #include <GLTools.h>	// OpenGL toolkit
 #include <GLMatrixStack.h>
 #include <GLFrame.h>
@@ -11,18 +14,29 @@
 #include <GLGeometryTransform.h>
 #include <iostream>
 
-#include "image.h"
+#include "GLSetting.h"
 #include "model.h"
-#include "Tools.h"
+#include "myTools.h"
+#include "VisualProcess.h"
+#include "RBF.h"
+#include "io.h"
 
 #ifdef __APPLE__
 #include <glut/glut.h>
 #else
 #define FREEGLUT_STATIC
-#include <glut.h>
+#include <gl/glut.h>
 #endif
 
+#include "LBF.h"
+
+#include <string>
+using std::string;
+void myLoadShader();
+void myUseShader();
+
 using namespace std;
+using namespace cv;
 
 /////////////////////////////////////////////////////////////////////////////////
 // An assortment of needed classes
@@ -32,53 +46,80 @@ GLMatrixStack		projectionMatrix;
 GLFrame             *objectFrame;
 GLFrustum			viewFrustum;
 
-GLBatch             bgBatch;                //背景图片
-GLBatch             *wireframeBatch;        //线框模型
-GLBatch				*facesBatch;            //贴图模型
+GLBatch             background_batch;       //背景图片
+GLBatch				*facesBatch;            //Face Model
+GLBatch             landmarks_batch;        //facial feature points
 
 GLGeometryTransform	transformPipeline;
 
-GLuint texture[1];
-GLuint nVerts;
-GLuint nFaces;
+GLuint	ADSLightShader;		// The diffuse light shader
+GLint	locAmbient;			// The location of the ambient color
+GLint   locDiffuse;			// The location of the diffuse color
+GLint   locSpecular;		// The location of the specular color
+GLint	locLight;			// The location of the Light in eye coordinates
+GLint	locMVP;				// The location of the ModelViewProjection matrix uniform
+GLint	locMV;				// The location of the ModelView matrix uniform
+GLint	locNM;				// The location of the Normal matrix uniform
 
+GLuint texture[2];  //texture[0] for background, texture[1] for model.
+int nVerts;         //人脸模型的顶点数目
+int nFaces;         //人脸模型的三角面数目
+
+static GLfloat Black[] = { 0.0f, 0.0f, 0.0f, 1.0f};
 GLfloat vWhite[] = { 1.0f, 1.0f, 1.0f, 1.0f };
-GLfloat *Verts;
+GLfloat vGray[] = { 0.38f, 0.38f, 0.38f, 1.0f };
 GLfloat texcoords[3][3];
 
 M3DVector3i *Faces;
 M3DVector3f Face[3];
-M3DVector3f Vert;
+M3DVector3f *vertice_array;      //人脸模型的顶点数组
+M3DVector3f *landmarks;
+M3DVector3f *vertice_landmarks;
+M3DVector3f *vertice_test;
 M3DMatrix44f scaler;
 
 Model candide3;
+
+Mat frame;
+
+RBF rbf;
+
+bool  current_frame_update = false;   //当前帧是否更新
+
+//double **landmarks;
 
 // Keep track of effects step
 int    nStep = 0;
 int    menu = 0;
 int    nSP = 0;
 int    nAP = 0;
-int    bgswitch = 1;    //背景图片显示开关
-int    wfswitch = 0;    //线框模型显示开关
-int    ffpcount = 0;    //
+int    switch_background = 1;  //背景图片显示开关，0 stands for on, 1 stands for off
+int    switch_landmarks = 1;   //人脸特征点显示开关
+int    switch_model = 0;       //人脸模型显示开关
+int    mode = 1;               //模型渲染模式，0 stands for GL_LINE, 1 stands for GL_FILL
+int    FFP_number;             //number of facial feature points
+int    fx, fy, fw, fh;  //人脸的位置数据
+int    test = 0;
+int*   FFP_index;              //index array of facial feature points
+int*   LM_index;               //index array of landmarks
 
-const int    ffpNum   = 11;   //人脸特征点数目
+//const int    ffpNum   = 11;   //人脸特征点数目
 
 //float ap = 0;
-float  winWidth;
-float  winHeight;
-float  winW;            //实际上的窗口宽度（像素数）
-float  winH;            //实际上的窗口高度（像素数）
+static float  viewport_width;  //视口宽度（背景图片像素数）
+static float  viewport_height; //视口高度（背景图片像素数）
+static float  window_width;    //窗口宽度（窗口像素数）
+static float  window_height;   //窗口高度（窗口像素数）
 float  r;               //人脸旋转偏量
-float  s;               //人脸缩放因子
-//float  mouse[2];        //鼠标坐标
+float  tx, ty;          //center of tracked face
+static float light_x;   //光源的位置，下同。
+static float light_y;
+static float light_z;
 
 point  t;               //人脸位移偏量
-point  ffp[ffpNum];             //人脸特征点
+//point  facial_feature_points[ffpNum];             //人脸特征点
 
-const char *teximage = "C:\\Users\\Hkling\\Desktop\\tamakin.jpg";
-//const char *teximage = "C:\\Users\\HG\\Desktop\\pic\\tomo.jpg";
-//const char *teximage = "C:\\Users\\HG\\Desktop\\pic\\yamap.jpg";
+FRAME_TYPE frame_type;
 
 bool findVertex(float x, float y, float vertex[3]){
 	float t[3];
@@ -89,35 +130,18 @@ bool findVertex(float x, float y, float vertex[3]){
 	else return false;
 }
 
-//bool oneline(M3DVector3f v0, M3DVector3f v1, M3DVector3f v2){
-//	bool result = false;
-//	if(abs((v1[1]-v0[1])*(v2[0]-v0[0]) - (v2[1]-v0[1])*(v1[0]-v0[0])) < 0.0001)
-//		result = true;
-//	return result;
-//}
-//
-//void adjust(M3DVector3f &v0, M3DVector3f &v1, M3DVector3f &v2){
-//	/*if(v0[0]>v1[0]){
-//		if(v0[0]>v2[0]) v0[1] += 0.1;
-//		else v2[1] += 0.1;
-//	}else{
-//		if(v1[0]>v2[0]) v1[1] += 0.1;
-//		else v2[1] += 0.1;
-//	}*/
-//	v0[1] += 0.1;
-//}
-
-
 ///////////////////////////////////////////////////////////////////////////////
 // This function does any needed initialization on the rendering context. 
 // This is the first opportunity to do any OpenGL related tasks.
 void SetupRC()
 {
-    // Black background
-    glClearColor(0.0f, 0.0f, 0.0f, 1.0f );
+	glPointSize(3.0);
 
+    // White background
+    glClearColor(1.0f, 1.0f, 1.0f, 1.0f );
+
+	myLoadShader();
 	shaderManager.InitializeStockShaders();
-
 	transformPipeline.SetMatrixStacks(modelViewMatrix, projectionMatrix);
 
 	glEnable(GL_DEPTH_TEST);
@@ -127,168 +151,148 @@ void SetupRC()
 
 	m3dScaleMatrix44(scaler, 1, 1, 1);
 	
- 	glGenTextures(1,texture);
-	glBindTexture(GL_TEXTURE_2D,texture[0]);
-	//loadBackgroundTex("C:\\Users\\HG\\Desktop\\pic\\myFace.jpg");
-	//loadBackgroundTex("C:\\Users\\HG\\Desktop\\pic\\huang.jpg");
-	//loadBackgroundTex("C:\\Users\\HG\\Desktop\\pic\\yuki.jpg");
-	//loadBackgroundTex("C:\\Users\\HG\\Desktop\\pic\\8.jpg");
-	Image2Tex(teximage,winWidth,winHeight);    //加载背景图片
-	//loadBackgroundTex("C:\\Users\\HG\\Desktop\\pic\\chiyaki.jpeg");
+ 	glGenTextures(2,texture);
 
-	glutReshapeWindow(winWidth,winHeight);
+	AcquireFrame(frame,frame_type);//For debugging. Image file path is fixed.
+	LoadTexture(frame,texture[BACKGROUND]);
+	current_frame_update = true;
+
+	ReadGlobalParamFromFile(modelPath+"LBF.model");
+
+	viewport_width = frame.cols;
+	viewport_height = frame.rows;
+	glutReshapeWindow(viewport_width,viewport_height);
 
 	float x, y;
-	if(winWidth>=winHeight) x = winWidth/winHeight, y = 1;
-	else x = 1, y = winHeight/winWidth;
+	if(viewport_width >= viewport_height)
+		x = viewport_width/viewport_height, y = 1;
+	else
+		x = 1, y = viewport_height/viewport_width;
 
 	//Background Texture
-	bgBatch.Begin(GL_TRIANGLES,6,1);
-	bgBatch.MultiTexCoord2f(0,0.0f,0.0f);
-    bgBatch.Vertex3f(-x,y,-1.9);
-	bgBatch.MultiTexCoord2f(0,0.0f,1.0f);
-    bgBatch.Vertex3f(-x,-y,-1.9);
-	bgBatch.MultiTexCoord2f(0,1.0f,0.0f);
-    bgBatch.Vertex3f(x,y,-1.9);
+	background_batch.Begin(GL_TRIANGLES,6,1);
+	background_batch.MultiTexCoord2f(0,0.0f,0.0f);
+    background_batch.Vertex3f(-x,y,-.5f);
+	background_batch.MultiTexCoord2f(0,0.0f,1.0f);
+    background_batch.Vertex3f(-x,-y,-.5f);
+	background_batch.MultiTexCoord2f(0,1.0f,0.0f);
+    background_batch.Vertex3f(x,y,-.5f);
 	
-	bgBatch.MultiTexCoord2f(0,0.0f,1.0f);
-    bgBatch.Vertex3f(-x,-y,-1.9);
-	bgBatch.MultiTexCoord2f(0,1.0f,1.0f);
-    bgBatch.Vertex3f(x,-y,-1.9);
-	bgBatch.MultiTexCoord2f(0,1.0f,0.0f);
-    bgBatch.Vertex3f(x,y,-1.9);
-	bgBatch.End();
+	background_batch.MultiTexCoord2f(0,0.0f,1.0f);
+    background_batch.Vertex3f(-x,-y,-.5f);
+	background_batch.MultiTexCoord2f(0,1.0f,1.0f);
+    background_batch.Vertex3f(x,-y,-.5f);
+	background_batch.MultiTexCoord2f(0,1.0f,0.0f);
+    background_batch.Vertex3f(x,y,-.5f);
+	background_batch.End();
 
 	//////////////////////////////////////////////////////////////////////
-	nVerts = candide3.nVertex();
-	nFaces = candide3.nFace();
-
-	Verts = new GLfloat[nVerts*3];
+	myReadMesh("C:\\Users\\Administrator\\Desktop\\candide3.off", vertice_array, Faces, nVerts, nFaces);
+	//myWriteMesh(Verts,Faces,candide3.nVertex(),candide3.nFace());
+	//
+	/*nVerts = candide3.nVertex();
+	nFaces = candide3.nFace();*/
 
 	candide3.applySP();
 	candide3.applyAP();
+
+	/*vertice_array = new M3DVector3f[nVerts];
 	for (int i = 0; i<nVerts; i++){
-		candide3.getTransCoords(i,Vert);
-		Verts[i*3+0] = Vert[0], Verts[i*3+1] = Vert[1], Verts[i*3+2] = Vert[2];
+		candide3.getTransCoords(i,vertice_array[i]);
 	}
 
 	Faces = new M3DVector3i[nFaces];
 	for (int i = 0; i<nFaces; i++)
-		candide3.getFace(i,Faces[i]);
-	
+		candide3.getFace(i,Faces[i]);*/
 }
 
 
 ///////////////////////////////////////////////////////////////////////////////
 // Called to draw scene
-void RenderScene(void)
-{    
+void RenderScene(void){
+	M3DVector3f light_position = {0, -1, -10};  //点光源的位置
+
 	// Clear the window with current clearing color
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 
+	//Should not be here./////////////////////////////////////////////////////////////////
+	//检测特征点                                                                        //
+	if(current_frame_update == true){                                                   //
+		FaceDetectionAndAlignment(frame, landmarks);                                    //
+		current_frame_update = false;                                                   //
+		                                                                                //
+		//landmarks的值从像素点位置转换为视口坐标系位置                                 //
+		for(int i = 0; i<global_params.landmark_num; i++){                              //
+			landmarks[i][0] = (2*landmarks[i][0]-viewport_width)/viewport_width;        //
+			landmarks[i][1] = (viewport_height-2*landmarks[i][1])/viewport_height;      //
+			landmarks[i][2] = landmarks[i][2];                                          //
+		}                                                                               //
+	}/////////////////////////////////////////////////////////////////////////////////////
 	
-
 	modelViewMatrix.PushMatrix();
 
-		if(bgswitch == 1){
+		//是否显示背景图，0为显示。
+		if(switch_background == 0){
 			shaderManager.UseStockShader(GLT_SHADER_TEXTURE_REPLACE, transformPipeline.GetModelViewProjectionMatrix(),0);
-			bgBatch.Draw();
+			background_batch.Draw();
 		} 
 
+		//渲染模型前的矩阵变换。
 		M3DMatrix44f mObjectFrame;
 		objectFrame->GetMatrix(mObjectFrame);
 		modelViewMatrix.MultMatrix(mObjectFrame);
 		modelViewMatrix.MultMatrix(scaler);
 
-	/*	M3DMatrix44f m;
-		m3dLoadIdentity44(m);*/
-		M3DVector3f t[3];
-
-		//每次渲染三角形前调整环绕方向
-		for (int i = 0; i<nFaces; i++){
-			Face[0][0] = Verts[Faces[i][0]*3+0];
-			Face[0][1] = Verts[Faces[i][0]*3+1];
-			Face[0][2] = Verts[Faces[i][0]*3+2];
-
-			Face[1][0] = Verts[Faces[i][1]*3+0];
-			Face[1][1] = Verts[Faces[i][1]*3+1];
-			Face[1][2] = Verts[Faces[i][1]*3+2];
-
-			Face[2][0] = Verts[Faces[i][2]*3+0];
-			Face[2][1] = Verts[Faces[i][2]*3+1];
-			Face[2][2] = Verts[Faces[i][2]*3+2];
-
-			/*m3dTransformVector3(t[0], Face[0], transformPipeline.GetModelViewMatrix());
-			m3dTransformVector3(t[1], Face[1], transformPipeline.GetModelViewMatrix());
-			m3dTransformVector3(t[2], Face[2], transformPipeline.GetModelViewMatrix());
-
-			if(clockwise(t[0],t[1],t[2])>=0){
-				int temp;
-				temp = Faces[i][0];
-				Faces[i][0] = Faces[i][1];
-				Faces[i][1] = temp;
-			}*/
-			if(clockwise(Face[0],Face[1],Face[2])>=0){
-				int temp;
-				temp = Faces[i][0];
-				Faces[i][0] = Faces[i][1];
-				Faces[i][1] = temp;
+		//是否渲染模型，0为渲染。
+		if(switch_model == 0){
+			glBindTexture(GL_TEXTURE_2D,texture[1]);
+			delete facesBatch;
+			facesBatch = NULL;
+			facesBatch = new GLBatch;
+			facesBatch->Begin(GL_TRIANGLES, nFaces*3,1);
+			for(int i = 0; i < nFaces; i++){
+				for(int j = 0; j < 3; j++){
+					candide3.getTexCoords(Faces[i][j],texcoords[j][0],texcoords[j][1]);
+					facesBatch->MultiTexCoord2f(0,texcoords[j][0],texcoords[j][1]);
+					facesBatch->Vertex3f(vertice_array[Faces[i][j]][0],vertice_array[Faces[i][j]][1],vertice_array[Faces[i][j]][2]);
+				}
 			}
+			facesBatch->End();
+
+			//Render in GL_LINE mode or GL_FILL mode.
+			if(!mode)
+				glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+			else
+				glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+
+			shaderManager.UseStockShader(GLT_SHADER_TEXTURE_REPLACE, transformPipeline.GetModelViewProjectionMatrix(),0);
+			//myUseShader();
+			facesBatch->Draw();
 		}
 
-		//////////////////////////////////////////////////////////
-		delete wireframeBatch;
-		wireframeBatch = NULL;
-		wireframeBatch = new GLBatch;
-		wireframeBatch->Begin(GL_TRIANGLES, nFaces*3);
-		for(int i = 0;i<nFaces; i++){
-			wireframeBatch->Vertex3f(Verts[Faces[i][0]*3+0],Verts[Faces[i][0]*3+1],Verts[Faces[i][0]*3+2]);
-			wireframeBatch->Vertex3f(Verts[Faces[i][1]*3+0],Verts[Faces[i][1]*3+1],Verts[Faces[i][1]*3+2]);
-			wireframeBatch->Vertex3f(Verts[Faces[i][2]*3+0],Verts[Faces[i][2]*3+1],Verts[Faces[i][2]*3+2]);
-		};
-		wireframeBatch->End();
-		/////////////////////////////////////////////////////////
-		delete facesBatch;
-		facesBatch = NULL;
-		facesBatch = new GLBatch;
-		facesBatch->Begin(GL_TRIANGLES, nFaces*3,1);  
-		for(int i = 0; i < nFaces; i++){
-			for(int j = 0; j < 3; j++){
-				candide3.getTexCoords(Faces[i][j],texcoords[j][0],texcoords[j][1]);
-				facesBatch->MultiTexCoord2f(0,texcoords[j][0],texcoords[j][1]);
-				//cout<<texcoords[0]<<'\t'<<texcoords[1]<<endl;
-				facesBatch->Vertex3f(Verts[Faces[i][j]*3+0],Verts[Faces[i][j]*3+1],Verts[Faces[i][j]*3+2]);
-			}
-		}
-		facesBatch->End();
+		//是否标识出landmarks，0为标识。
+		if(switch_landmarks == 0){
+			landmarks_batch.Begin(GL_POINTS, global_params.landmark_num-test);
+			landmarks_batch.CopyVertexData3f(landmarks);
+			landmarks_batch.End();
 
-		shaderManager.UseStockShader(GLT_SHADER_FLAT, transformPipeline.GetModelViewProjectionMatrix(), vWhite);
-
-		switch(nStep) {
-			case 0:
-				break;
-			case 1:
-				shaderManager.UseStockShader(GLT_SHADER_TEXTURE_REPLACE, transformPipeline.GetModelViewProjectionMatrix(),0);
-				facesBatch->Draw();
-				break;
-			}
-
-		if(wfswitch == 0){
-			glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-			wireframeBatch->Draw();
-			glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+			shaderManager.UseStockShader(GLT_SHADER_IDENTITY, vWhite);  //不进行modelview变换，直接渲染。
+			landmarks_batch.Draw();
 		}
 
-	modelViewMatrix.PopMatrix();
 
+	modelViewMatrix.PopMatrix();  //清楚模型的矩阵变换信息。
+
+	glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+	glBindTexture(GL_TEXTURE_2D,texture[BACKGROUND]);
 	// Flush drawing commands
 	glutSwapBuffers();
    }
 
 
 // Respond to arrow keys by moving the camera frame of reference
-void SpecialKeys(int key, int x, int y)
-    {
+void SpecialKeys(int key, int x, int y){
+
 	if(key == GLUT_KEY_UP)
 		objectFrame->TranslateWorld(0.0f, 0.01f, 0.0f);
     
@@ -308,8 +312,7 @@ void SpecialKeys(int key, int x, int y)
 ///////////////////////////////////////////////////////////////////////////////
 // A normal ASCII key has been pressed.
 // In this case, advance the scene when the space bar is pressed
-void KeyPressFunc(unsigned char key, int x, int y)
-{
+void KeyPressFunc(unsigned char key, int x, int y){
 
 	if(key == 56)
 		objectFrame->RotateWorld(m3dDegToRad(9.0f), 1.0f, 0.0f, 0.0f);
@@ -329,7 +332,7 @@ void KeyPressFunc(unsigned char key, int x, int y)
 	if(key == 57)
 		objectFrame->RotateWorld(m3dDegToRad(-1.5f), 0.0f, 0.0f, 1.0f);
 
-	//Enter键
+	//Enter键, update texture coordinates.
 	if(key == 13){
 		nStep = 1;
 		modelViewMatrix.PushMatrix();
@@ -341,27 +344,27 @@ void KeyPressFunc(unsigned char key, int x, int y)
 
 			GLfloat t[3];
 			float x, y;
-			if(winWidth>=winHeight) x = winWidth/winHeight, y = 1;
-			else x = 1, y = winHeight/winWidth;
+			if(viewport_width>=viewport_height) x = viewport_width/viewport_height, y = 1;
+			else x = 1, y = viewport_height/viewport_width;
 			for(int i = 0; i < nFaces; i++){
 				for(int j = 0; j < 3; j++){
-					t[0] = Verts[Faces[i][j]*3+0];
-					t[1] = Verts[Faces[i][j]*3+1];
-					t[2] = Verts[Faces[i][j]*3+2];
+					t[0] = vertice_array[Faces[i][j]][0];
+					t[1] = vertice_array[Faces[i][j]][0];
+					t[2] = vertice_array[Faces[i][j]][0];
 					m3dTransformVector3(texcoords[j], t, transformPipeline.GetModelViewMatrix());
+					/*纹理坐标规范化，坐标值范围为0.0到1.0*/
 					candide3.setTexCoords(Faces[i][j],(texcoords[j][0]/x+1)/2,(-texcoords[j][1]/y+1)/2);
 				}
 			}
 
 		modelViewMatrix.PopMatrix();
 
+		LoadTexture(frame,texture[MODEL]);
 	}
 	
 	//空白键
 	if(key == 32){
-		nStep++;
-		if(nStep > 1)
-			nStep = 0;
+		mode = ++mode %2;
 	}
 
 	//"+"键
@@ -385,8 +388,7 @@ void KeyPressFunc(unsigned char key, int x, int y)
 			break;
 		}
 		for (int i = 0; i < nVerts; i++){
-			candide3.getTransCoords(i,Vert);
-			Verts[i*3+0] = Vert[0], Verts[i*3+1] = Vert[1], Verts[i*3+2] = Vert[2];
+			candide3.getTransCoords(i,vertice_array[i]);
 		}
 	}
 
@@ -411,21 +413,22 @@ void KeyPressFunc(unsigned char key, int x, int y)
 			break;
 		}
 		for (int i = 0; i < nVerts; i++){
-			candide3.getTransCoords(i,Vert);
-			Verts[i*3+0] = Vert[0], Verts[i*3+1] = Vert[1], Verts[i*3+2] = Vert[2];
+			candide3.getTransCoords(i,vertice_array[i]);
 		}
 	}
 
 	//清零,回到标准Candide-3模型
 	if(key == 48){
+		M3DVector3f Vert;
 		for (int i = 0; i<nVerts; i++){
 			candide3.getVertex(i,Vert);
 			candide3.setTransCoords(i,Vert);
-			Verts[i*3+0] = Vert[0], Verts[i*3+1] = Vert[1], Verts[i*3+2] = Vert[2];			
+			vertice_array[i][0] = Vert[0], vertice_array[i][1] = Vert[1], vertice_array[i][2] = Vert[2];			
 		}
 		m3dScaleMatrix44(scaler, 1, 1, 1);
-		delete objectFrame; objectFrame = NULL;
-		objectFrame = new GLFrame;
+		objectFrame->SetOrigin(0,0,0);
+		objectFrame->SetForwardVector(0,0,-1);
+		objectFrame->SetUpVector(0,1,0);
 		//ap = 0;
 		for(int i = 0; i < candide3.nSUs(); i++)
 			candide3.setSP(i,0);
@@ -441,65 +444,70 @@ void KeyPressFunc(unsigned char key, int x, int y)
 		objectFrame = new GLFrame;
 
 		candide3.clearAP();
-
+		M3DVector3f Vert;
 		for (int i = 0; i<nVerts; i++){
-			candide3.getTransCoords(i,Vert);
-			Verts[i*3+0] = Vert[0], Verts[i*3+1] = Vert[1], Verts[i*3+2] = Vert[2];
+			candide3.setTransCoords(i,Vert);
+			vertice_array[i][0] = Vert[0], vertice_array[i][1] = Vert[1], vertice_array[i][2] = Vert[2];
 		}
 
 	}
+
+	if(key == ('c'&0x1f)){
+		int mod = glutGetModifiers();
+		if(mod == GLUT_ACTIVE_CTRL){
+			LONG len = frame.cols * frame.rows * 3;
+			cout<<"ctrl+c"<<endl;
+			HGLOBAL hClipData = GlobalAlloc(GHND, len*sizeof(uchar));
+			BYTE *pClipData = (BYTE *)GlobalLock(hClipData);
+			memcpy(pClipData, frame.data, len);
+			GlobalUnlock(hClipData);			
+
+			if(OpenClipboard(NULL)){
+				cout<<"Clipboard on!"<<endl;
+				EmptyClipboard();
+				SetClipboardData(CF_BITMAP, hClipData);
+				CloseClipboard();
+			}
+		}
+	}
+
+	//移动光源位置。
+	if(key == 'd'){
+		light_x += 0.1;
+	}
+	if(key == 'a'){
+		light_x -= 0.1;
+	}
+	if(key == 'w'){
+		light_y += 0.1;
+	}
+	if(key == 's'){
+		light_y -= 0.1;
+	}
+	if(key == 'q'){
+		light_z += 0.1;
+	}
+	if(key == 'e'){
+		light_z -= 0.1;
+	}
                 
     glutPostRedisplay();
-	}
+}
 
 ///////////////////////////////////////////////////////////////////////////////
 void ProcessMainMenu(int value){
-	float ss;
-
 	switch (value){
 	case 0:
 		menu = value;
 		break;
 	case 1:
 		candide3.loadTexImage("teximage");
-		break;
+		break;	
 	case 2:
-		candide3.write("C:\\Users\\Hkling\\Desktop\\tamakin.wfm");
 		break;
 	case 3:
-		ffpcount = ffpNum;
-		break;
-	case 4:
-		//cout<<rollAngle(ffp)<<endl;
-		//objectFrame->RotateWorld(rollAngle(ffp), 0.0f, 0.0f, 1.0f);     //计算偏转量
-
-		M3DVector3f v1,v2,t1,t2;
-		candide3.getVertex(29, v1);
-		candide3.getVertex(62, v2);
-		//m3dTransformVector3(t1, v1, transformPipeline.GetModelViewMatrix());
-		//m3dTransformVector3(t2, v2, transformPipeline.GetModelViewMatrix());
-		//ss = sqrt(pow(ffp[7][0]-ffp[8][0],2)+pow(ffp[7][1]-ffp[8][1],2))/sqrt(pow(t1[0]-t2[0],2)+pow(t1[1]-t2[1],2));
-		ss = sqrt(pow(ffp[9][0]-ffp[10][0],2)+pow(ffp[9][1]-ffp[10][1],2))/sqrt(pow(v1[0]-v2[0],2)+pow(v1[1]-v2[1],2));
-		M3DMatrix44f s;
-		m3dScaleMatrix44(s, ss, ss, ss);
-		//cout<<ss<<endl;
-		m3dMatrixMultiply44(scaler,scaler,s);    //计算缩放因子
-
-		M3DVector3f v[3],t;
-		candide3.getVertex(3, v[0]);
-		candide3.getVertex(6, v[1]);
-		candide3.getVertex(8, v[2]);
-		//m3dTransformVector3(t, v, transformPipeline.GetModelViewMatrix());
-		t[0] = (ffp[6][0]+ffp[7][0]+ffp[8][0]-v[0][0]-v[1][0]-v[2][0])/3;
-		t[1] = (ffp[6][1]+ffp[7][1]+ffp[8][1]-v[0][1]-v[1][1]-v[2][1])/3;
-		objectFrame->TranslateWorld(t[0], t[1], 0.0f);     //计算位移量
-
-		/*Verts[15*3+0] = ffp[5][0];Verts[15*3+1] = ffp[5][1];
-		Verts[17*3+0] = ffp[4][0];Verts[17*3+1] = ffp[4][1];*/
-
-		objectFrame->RotateWorld(rollAngle(ffp), 0.0f, 0.0f, 1.0f);     //计算偏转量
-
-
+		HeadPoseEstimation(landmarks, candide3, objectFrame, scaler);
+		cout<<"testing"<<endl;
 		glutPostRedisplay();
 		break;
 	default:;
@@ -514,44 +522,167 @@ void ProcessAUMenu(int value){
 	menu = 2, nAP = value;
 }
 
-void ProcessBGMenu(int value){
-	bgswitch = value;
+void ProcessRenderMenu(int value){
+	switch(value){
+		case 0:
+			switch_background = ++switch_background % 2;
+			break;
+		case 1:
+			switch_landmarks = ++switch_landmarks % 2;
+			//test++;
+			break;
+		case 2:
+			switch_model = ++switch_model % 2;
+			break;
+		default:;
+	}
 	glutPostRedisplay();
 }
 
-void ProcessWFMenu(int value){
-	wfswitch = value;
-	glutPostRedisplay();
+void ProcessKernelFuncMenu(int value){
+	switch(value){
+		case 0: rbf.set_kernel_type(GAUSS);break;
+		case 1: rbf.set_kernel_type(REFLECTED_SIGMOIDAL);break;
+		case 2: rbf.set_kernel_type(INVERSE_MULTIQUADRICS);break;
+		default: cerr<<"Error in choosing kernel function!"<<endl;
+	}
+}
+
+void ProcessMeshDeformationMenu(int value){
+	switch(value){
+		case 0:
+			double s;
+			cout<<"Please input sigma: ";
+			cin>>s;
+			rbf.set_sigma(s);
+			break;
+		case 1:{
+			ReadFileFFP("C:\\Users\\Administrator\\Desktop\\myFace100\\myFace100\\Resource Files\\facial feature points.txt", FFP_number, FFP_index, LM_index);
+
+			/*Mat FFP_array(2, FFP_number, CV_32F);
+			Mat LM_array(2, FFP_number, CV_32F);
+			Mat mesh_train(2, candide3.nVertex(), CV_32F);
+			Mat mesh_predict(2, candide3.nVertex(), CV_32F);*/
+			Mat FFP_array(FFP_number, 2, CV_32F);
+			Mat LM_array(FFP_number, 2, CV_32F);
+			Mat mesh_train(candide3.nVertex(), 2, CV_32F);
+			Mat mesh_predict(candide3.nVertex(), 2, CV_32F);
+
+			modelViewMatrix.PushMatrix();
+
+				M3DVector3f v,temp,t;
+				M3DMatrix44f mObjectFrame, imvp;
+				objectFrame->GetMatrix(mObjectFrame);
+				modelViewMatrix.MultMatrix(mObjectFrame);
+				modelViewMatrix.MultMatrix(scaler);
+				m3dInvertMatrix44(imvp, transformPipeline.GetModelViewProjectionMatrix());
+				for(int i = 0;i<FFP_number;i++){
+					/*FFP_array.at<float>(0,i) = Verts[FFP_index[i]*3+0];
+					FFP_array.at<float>(1,i) = Verts[FFP_index[i]*3+1];*/
+					/*temp[0] = Verts[FFP_index[i]*3+0];
+					temp[1] = Verts[FFP_index[i]*3+1];
+					temp[2] = Verts[FFP_index[i]*3+2];
+					m3dTransformVector3(t, temp, transformPipeline.GetModelViewMatrix());
+					FFP_array.at<float>(i,0) = t[0];
+					FFP_array.at<float>(i,1) = t[1];*/
+					///////////////////////////////////////////////////////
+					FFP_array.at<float>(i,0) = vertice_array[FFP_index[i]][0]; //
+					FFP_array.at<float>(i,1) = vertice_array[FFP_index[i]][1]; //
+					                                                    //
+					m3dTransformVector3(v, landmarks[LM_index[i]], imvp);//
+					LM_array.at<float>(i,0) = v[0];                      //
+					LM_array.at<float>(i,1) = v[1];                      //
+					/*LM_array.at<float>(i,0) = landmarks[LM_index[i]][0];
+					LM_array.at<float>(i,1) = landmarks[LM_index[i]][1];*/
+				}
+
+			//modelViewMatrix.PopMatrix();
+
+			for(int i = 0;i<candide3.nVertex();i++){
+				/*mesh_train.at<float>(0,i) = Verts[i*3+0];
+				mesh_train.at<float>(1,i) = Verts[i*3+1];*/
+				/*temp[0] = Verts[i*3+0];
+				temp[1] = Verts[i*3+1];
+				temp[2] = Verts[i*3+2];
+				m3dTransformVector3(t, temp, transformPipeline.GetModelViewMatrix());
+				mesh_train.at<float>(i,0) = t[0];
+				mesh_train.at<float>(i,1) = t[1];*/
+				//
+				mesh_train.at<float>(i,0) = vertice_array[i][0];
+				mesh_train.at<float>(i,1) = vertice_array[i][1];
+				/*For testing.
+				mesh_train.at<float>(2,i) = Verts[i*3+2];*/
+			}
+
+			rbf.train(FFP_array, LM_array);
+			rbf.predict(mesh_train, mesh_predict);
+
+			////////////////////////////////////////////////////////////////////////
+			/*CvANN_MLP_TrainParams params;
+			CvANN_MLP model;
+			Mat layerSizes = (Mat_<int>(1,3)<<2,FFP_number,2);
+			model.create(layerSizes,CvANN_MLP::GAUSSIAN, 0.4, 1.1);
+			model.train(FFP_array, LM_array, Mat(), Mat(), params);
+			model.predict(mesh_train, mesh_predict);*/
+			///////////////////////////////////////////////////////////////////////
+
+			cout<<endl;
+			for(int i = 0;i<candide3.nVertex();i++){
+				/*Verts[i*3+0] = mesh_predict.at<float>(0,i);
+				Verts[i*3+1] = mesh_predict.at<float>(1,i);*/
+				vertice_array[i][0] = mesh_predict.at<float>(i,0);
+				vertice_array[i][1] = mesh_predict.at<float>(i,1);
+
+				//cout<<Verts[FFP_index[i]*3+0]<<' '<<Verts[FFP_index[i]*3+1]<<endl;
+			}
+
+			for(int i = 0;i<FFP_number;i++){
+				vertice_array[FFP_index[i]][0] = LM_array.at<float>(i,0);
+				vertice_array[FFP_index[i]][1] = LM_array.at<float>(i,1);
+				//
+				/*Verts[FFP_index[i]*3+0] = landmarks[LM_index[i]][0];
+				Verts[FFP_index[i]*3+1] = landmarks[LM_index[i]][1];*/
+			}
+
+			/*for(int i = 0;i<candide3.nVertex();i++){
+				temp[0] = Verts[i*3+0];
+				temp[1] = Verts[i*3+1];
+				temp[2] = Verts[i*3+2];
+				m3dTransformVector3(t, temp, imvp);
+				Verts[i*3+0] = t[0];
+				Verts[i*3+1] = t[1];
+				Verts[i*3+2] = t[2];
+			}*/
+
+			modelViewMatrix.PopMatrix();//
+			glutPostRedisplay();
+			break;
+		}
+		default:
+			cerr<<"Error in mesh deformation!"<<endl;
+	}
 }
 
 void processMouse(int button, int state, int x, int y){
 	float xx =x, yy = y, mouse[2];
 	if(button == GLUT_LEFT_BUTTON && state == GLUT_DOWN){
-		if(winWidth>=winHeight){
-			mouse[0] = (2*xx - winW)/winH;
-			mouse[1] = 1 - 2*yy/winH;
+		if(viewport_width>=viewport_height){
+			mouse[0] = (2*xx - window_width)/window_height;
+			mouse[1] = 1 - 2*yy/window_height;
+			cout<<mouse[0]<<','<<mouse[1]<<endl;
 		}else{
-			mouse[0] = 2*xx/winW - 1;
-			mouse[1] = (winH-2*yy)/winW;
-			//cout<<mouse[0]<<','<<mouse[1]<<endl;
-		}
-	
-		if(ffpcount == 0){
-			float t[3];
-			for(int i = 0; i < nVerts; i++){
-				t[0] = Verts[i*3+0];
-				t[1] = Verts[i*3+1];
-				t[2] = Verts[i*3+2];
-				if(findVertex(mouse[0],mouse[1],t))cout<<"vertex "<<i<<endl;
-			}
-		}else{
-			ffpcount--;
-			ffp[ffpcount][0] = mouse[0];
-			ffp[ffpcount][1] = mouse[1];
-			//cout<<mfcount<<endl;
-			cout<<ffp[ffpcount][0]<<","<<ffp[ffpcount][1]<<endl;
+			mouse[0] = 2*xx/window_width - 1;
+			mouse[1] = (window_height-2*yy)/window_width;
+			cout<<mouse[0]<<','<<mouse[1]<<endl;
 		}
 
+		float t[3];
+		for(int i = 0; i < nVerts; i++){
+			t[0] = vertice_array[i][0];
+			t[1] = vertice_array[i][1];
+			t[2] = vertice_array[i][2];
+			if(findVertex(mouse[0],mouse[1],t))cout<<i<<endl;
+		}
 	}
 }
 
@@ -560,41 +691,77 @@ void processMouse(int button, int state, int x, int y){
 // to use the window dimensions to set the viewport and the projection matrix.
 void ChangeSize(int w, int h)
 {
-	winW = w; winH = h;
-	float a = w , b = h, ratio;
-	glViewport(0, 0, w, h);
-	if(w>=h){
-		ratio = a/b;
-		viewFrustum.SetOrthographic(-ratio,ratio,-1,1,-2.0f,2.0f);
-	}else{
-		ratio = b/a;
-		viewFrustum.SetOrthographic(-1,1,-ratio,ratio,-2.0f,2.0f);
-	}
+	window_width = w;
+	window_height = h;
+
+	//将视口缩放并居中于窗口区域
+	float ratio = viewport_width/viewport_height;
+	float width_scaler = window_width/viewport_width; 
+	float height_scaler = window_height/viewport_height;
+
+	float scaler = width_scaler<height_scaler? width_scaler : height_scaler;
+    float x = (window_width - viewport_width*scaler)/2;
+	float y = (window_height - viewport_height*scaler)/2;
+
+	glViewport(x, y, viewport_width*scaler, viewport_height*scaler);
+
+	//视口坐标为正投影坐标
+	//x: -ratio~ratio (-1~1)
+	//y:-1~1 (-1/ratio~1/ratio)
+	//z:-1~1
+	if(ratio>1)
+		viewFrustum.SetOrthographic(-ratio,ratio,-1,1,-1.0f,1.0f);
+	else
+		viewFrustum.SetOrthographic(-1,1,-1/ratio,1/ratio,-1.0f,1.0f);
+	
 	projectionMatrix.LoadMatrix(viewFrustum.GetProjectionMatrix());
 	modelViewMatrix.LoadIdentity();
 }
 
+void TimeFunc(int value){
+	RenderScene();
+	glutTimerFunc(40,TimeFunc,0);
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 // Main entry point for GLUT based programs
-int main(int argc, char* argv[])
-{
+int main(int argc, char* argv[]){
+
+	string frame_type_string;
+
+	cout<<"Please choose [load an image/capture from camera]:"<<endl;
+	cout<<"Input \"image\" for loading an image"<<endl;
+	cout<<"Input \"camera\" for capturing from camera"<<endl;
+	cout<<'>';
+	//cin>>frame_type_string;
+	//For debugging.	
+	cout<<"image"<<endl;
+	frame_type_string = "image";
+	//For debugging.
+
+	if(frame_type_string=="image"){
+		frame_type = IMAGE;
+	}else if(frame_type_string=="camera"){
+		frame_type = CAMERA;
+		glutTimerFunc(40,TimeFunc,0);
+	}else{
+		cerr<<"invalid input!"<<endl;
+		return -1;
+	}
+
 	gltSetWorkingDirectory(argv[0]);
 	
 	glutInit(&argc, argv);
 	//glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGBA | GLUT_DEPTH | GLUT_STENCIL);
 	glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGBA | GLUT_DEPTH);
 	glutInitWindowSize(500, 500);
-	glutCreateWindow("Candide3");
+	glutCreateWindow("AutoFace 2.0");
     glutReshapeFunc(ChangeSize);
     glutKeyboardFunc(KeyPressFunc);
     glutSpecialFunc(SpecialKeys);
     glutDisplayFunc(RenderScene);
 
-	candide3.open("C:\\Users\\Hkling\\Desktop\\candide3.wfm");
-	//candide3.open("C:\\Users\\HG\\Desktop\\pic\\temp.wfm");
-	//candide3.open("C:\\Users\\Hkling\\Desktop\\tamakin.wfm");
-	//candide3.write("C:\\Users\\HG\\Desktop\\pic\\temp.wfm");
-	//makeAUs(candide3);
+	candide3.open("C:\\Users\\Administrator\\Desktop\\myFace100\\myFace100\\Resource Files\\candide3_all_triangles_ccw.wfm");
 
 	////////////////////////////////////////////////////////
 	//创建菜单
@@ -608,24 +775,31 @@ int main(int argc, char* argv[])
 		glutAddMenuEntry(candide3.getAUsName(i),i);
 	}
 
-	int BGMenu = glutCreateMenu(ProcessBGMenu);
-	glutAddMenuEntry("on",1);
-	glutAddMenuEntry("off",0);
+	//Rendering Menu: change rendering mode.
+	int RenderMenu = glutCreateMenu(ProcessRenderMenu);
+	glutAddMenuEntry("background(on/off)",0);
+	glutAddMenuEntry("landmarks(on/off)",1);
+	glutAddMenuEntry("model(on/off)",2);
 
-	int WFMenu = glutCreateMenu(ProcessWFMenu);
-	glutAddMenuEntry("on",0);
-	glutAddMenuEntry("off",1);
+	int KernelFuncMenu = glutCreateMenu(ProcessKernelFuncMenu);
+	glutAddMenuEntry("GAUSS",0);
+	glutAddMenuEntry("REFLECTED_SIGMOIDAL",1);
+	glutAddMenuEntry("INVERSE_MULTIQUADRICS",2);
+
+	int MeshDeformationMenu = glutCreateMenu(ProcessMeshDeformationMenu);
+	glutAddSubMenu("Kernel Function",KernelFuncMenu);
+	glutAddMenuEntry("set sigma",0);
+	glutAddMenuEntry("RBF Transform",1);
 
 	glutCreateMenu(ProcessMainMenu);
     glutAddMenuEntry("Zoom",0);
     glutAddSubMenu("Adjust SU",SUMenu);
 	glutAddSubMenu("Change AU",AUMenu);
-	glutAddSubMenu("Background",BGMenu);
-	glutAddSubMenu("WireFrame",WFMenu);
+	glutAddSubMenu("render",RenderMenu);
 	glutAddMenuEntry("Load Texture Image",1);
-	glutAddMenuEntry("Save Model",2);
-	glutAddMenuEntry("Select FFPs",3);
-	glutAddMenuEntry("Global Motion",4);
+	glutAddMenuEntry("Select FFPs",2);
+	glutAddMenuEntry("Head Pose Estimation",3);
+	glutAddSubMenu("Mesh Deformation",MeshDeformationMenu);
 
     glutAttachMenu(GLUT_RIGHT_BUTTON);
 	////////////////////////////////////////////////////////////
@@ -646,4 +820,34 @@ int main(int argc, char* argv[])
 	glutMainLoop();
 
 	return 0;
+}
+
+void myLoadShader(){
+	string path = "D:\\BaiduYunDownload\\OpenGLSB5\\SB5\\Src\\Chapter06\\ADSPhong\\";
+	ADSLightShader = shaderManager.LoadShaderPairWithAttributes((path+"ADSPhong.vp").c_str(), (path+"ADSPhong.fp").c_str(), 2, GLT_ATTRIBUTE_VERTEX, "vVertex",
+			GLT_ATTRIBUTE_NORMAL, "vNormal");
+
+	locAmbient = glGetUniformLocation(ADSLightShader, "ambientColor");
+	locDiffuse = glGetUniformLocation(ADSLightShader, "diffuseColor");
+	locSpecular = glGetUniformLocation(ADSLightShader, "specularColor");
+	locLight = glGetUniformLocation(ADSLightShader, "vLightPosition");
+	locMVP = glGetUniformLocation(ADSLightShader, "mvpMatrix");
+	locMV  = glGetUniformLocation(ADSLightShader, "mvMatrix");
+	locNM  = glGetUniformLocation(ADSLightShader, "normalMatrix");
+}
+
+void myUseShader(){
+	GLfloat vEyeLight[] = { light_x, light_y, light_z };
+	GLfloat vAmbientColor[] = { 0.1f, 0.1f, 0.1f, 1.0f };
+	GLfloat vDiffuseColor[] = { 1.0f, 1.0f, 1.0f, 1.0f };
+	GLfloat vSpecularColor[] = { 0.0f, 0.0f, 0.0f, 1.0f };
+
+	glUseProgram(ADSLightShader);
+	glUniform4fv(locAmbient, 1, vAmbientColor);
+	glUniform4fv(locDiffuse, 1, vDiffuseColor);
+	glUniform4fv(locSpecular, 1, vSpecularColor);
+	glUniform3fv(locLight, 1, vEyeLight);
+	glUniformMatrix4fv(locMVP, 1, GL_FALSE, transformPipeline.GetModelViewProjectionMatrix());
+	glUniformMatrix4fv(locMV, 1, GL_FALSE, transformPipeline.GetModelViewMatrix());
+	glUniformMatrix3fv(locNM, 1, GL_FALSE, transformPipeline.GetNormalMatrix());
 }
