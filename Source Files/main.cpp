@@ -1,8 +1,3 @@
-// Primitieves.cpp
-// OpenGL SuperBible, Chapter 2
-// Demonstrates the 7 Geometric Primitives
-// Program by Richard S. Wright Jr.
-
 #include "clockwise.h"
 #include "meshEditor.h"
 
@@ -62,17 +57,17 @@ GLint	locMV;				// The location of the ModelView matrix uniform
 GLint	locNM;				// The location of the Normal matrix uniform
 
 GLuint texture[2];  //texture[0] for background, texture[1] for model.
-int nVerts;         //人脸模型的顶点数目
-int nFaces;         //人脸模型的三角面数目
+int nVerts = 0;     //人脸模型的顶点数目
+int nFaces = 0;     //人脸模型的三角面数目
 
 static GLfloat Black[] = { 0.0f, 0.0f, 0.0f, 1.0f};
 GLfloat vWhite[] = { 1.0f, 1.0f, 1.0f, 1.0f };
-GLfloat vGray[] = { 0.38f, 0.38f, 0.38f, 1.0f };
 GLfloat texcoords[3][3];
 
 M3DVector3i *Faces;
 M3DVector3f Face[3];
-M3DVector3f *vertice_array;      //人脸模型的顶点数组
+M3DVector3f *vertices_array;      //人脸模型的顶点数组
+M3DVector3f *pixels_landmarks;   //landmrak的坐标，按像素点计算
 M3DVector3f *landmarks;
 M3DVector3f *vertice_landmarks;
 M3DVector3f *vertice_test;
@@ -86,30 +81,27 @@ RBF rbf;
 
 bool  current_frame_update = false;   //当前帧是否更新
 
-//double **landmarks;
-
 // Keep track of effects step
 int    nStep = 0;
-int    menu = 0;
+int    menu = 0;               //+、-按键对应的操作
 int    nSP = 0;
 int    nAP = 0;
-int    switch_background = 1;  //背景图片显示开关，0 stands for on, 1 stands for off
-int    switch_landmarks = 1;   //人脸特征点显示开关
+int    switch_background = 0;  //背景图片显示开关，0 stands for on, 1 stands for off
+int    switch_landmarks = 0;   //人脸特征点显示开关
 int    switch_model = 0;       //人脸模型显示开关
-int    mode = 1;               //模型渲染模式，0 stands for GL_LINE, 1 stands for GL_FILL
+int    mode = 0;               //模型渲染模式，0 stands for GL_LINE, 1 stands for GL_FILL
 int    FFP_number;             //number of facial feature points
 int    fx, fy, fw, fh;  //人脸的位置数据
 int    test = 0;
 int*   FFP_index;              //index array of facial feature points
 int*   LM_index;               //index array of landmarks
 
-//const int    ffpNum   = 11;   //人脸特征点数目
-
-//float ap = 0;
-static float  viewport_width;  //视口宽度（背景图片像素数）
-static float  viewport_height; //视口高度（背景图片像素数）
-static float  window_width;    //窗口宽度（窗口像素数）
-static float  window_height;   //窗口高度（窗口像素数）
+static float  viewport_aspect_ratio;  //视口宽高比（背景图片宽高比）
+static float  viewport_scaler;        //缩放比例，将背景图片缩放到视口大小
+static float  viewport_width;         //视口宽度（背景图片像素数）
+static float  viewport_height;        //视口高度（背景图片像素数）
+static float  window_width;           //窗口宽度（窗口像素数）
+static float  window_height;          //窗口高度（窗口像素数）
 float  r;               //人脸旋转偏量
 float  tx, ty;          //center of tracked face
 static float light_x;   //光源的位置，下同。
@@ -117,18 +109,9 @@ static float light_y;
 static float light_z;
 
 point  t;               //人脸位移偏量
-//point  facial_feature_points[ffpNum];             //人脸特征点
 
 FRAME_TYPE frame_type;
 
-bool findVertex(float x, float y, float vertex[3]){
-	float t[3];
-
-	m3dTransformVector3(t, vertex, transformPipeline.GetModelViewMatrix());
-
-	if(pow(t[0]-x,2)+pow(t[1]-y,2)<0.001)return true;
-	else return false;
-}
 
 ///////////////////////////////////////////////////////////////////////////////
 // This function does any needed initialization on the rendering context. 
@@ -185,25 +168,6 @@ void SetupRC()
 	background_batch.MultiTexCoord2f(0,1.0f,0.0f);
     background_batch.Vertex3f(x,y,-.5f);
 	background_batch.End();
-
-	//////////////////////////////////////////////////////////////////////
-	myReadMesh("C:\\Users\\Administrator\\Desktop\\candide3.off", vertice_array, Faces, nVerts, nFaces);
-	//myWriteMesh(Verts,Faces,candide3.nVertex(),candide3.nFace());
-	//
-	/*nVerts = candide3.nVertex();
-	nFaces = candide3.nFace();*/
-
-	candide3.applySP();
-	candide3.applyAP();
-
-	/*vertice_array = new M3DVector3f[nVerts];
-	for (int i = 0; i<nVerts; i++){
-		candide3.getTransCoords(i,vertice_array[i]);
-	}
-
-	Faces = new M3DVector3i[nFaces];
-	for (int i = 0; i<nFaces; i++)
-		candide3.getFace(i,Faces[i]);*/
 }
 
 
@@ -218,14 +182,15 @@ void RenderScene(void){
 	//Should not be here./////////////////////////////////////////////////////////////////
 	//检测特征点                                                                        //
 	if(current_frame_update == true){                                                   //
-		FaceDetectionAndAlignment(frame, landmarks);                                    //
+		FaceDetectionAndAlignment(frame, pixels_landmarks);                             //
 		current_frame_update = false;                                                   //
 		                                                                                //
-		//landmarks的值从像素点位置转换为视口坐标系位置                                 //
+		//landmarks的值从初始窗口像素点位置转换为视口坐标系位置（窗口像素点坐标与视口像素点坐标一致）                                 //
+		landmarks = new M3DVector3f[global_params.landmark_num];                        //
 		for(int i = 0; i<global_params.landmark_num; i++){                              //
-			landmarks[i][0] = (2*landmarks[i][0]-viewport_width)/viewport_width;        //
-			landmarks[i][1] = (viewport_height-2*landmarks[i][1])/viewport_height;      //
-			landmarks[i][2] = landmarks[i][2];                                          //
+			landmarks[i][0] = (2*pixels_landmarks[i][0]-viewport_width)/viewport_width;  //
+			landmarks[i][1] = (viewport_height-2*pixels_landmarks[i][1])/viewport_height;//
+			landmarks[i][2] = pixels_landmarks[i][2];                                   //
 		}                                                                               //
 	}/////////////////////////////////////////////////////////////////////////////////////
 	
@@ -233,7 +198,7 @@ void RenderScene(void){
 
 		//是否显示背景图，0为显示。
 		if(switch_background == 0){
-			shaderManager.UseStockShader(GLT_SHADER_TEXTURE_REPLACE, transformPipeline.GetModelViewProjectionMatrix(),0);
+			shaderManager.UseStockShader(GLT_SHADER_TEXTURE_REPLACE, transformPipeline.GetProjectionMatrix(),0);
 			background_batch.Draw();
 		} 
 
@@ -254,7 +219,7 @@ void RenderScene(void){
 				for(int j = 0; j < 3; j++){
 					candide3.getTexCoords(Faces[i][j],texcoords[j][0],texcoords[j][1]);
 					facesBatch->MultiTexCoord2f(0,texcoords[j][0],texcoords[j][1]);
-					facesBatch->Vertex3f(vertice_array[Faces[i][j]][0],vertice_array[Faces[i][j]][1],vertice_array[Faces[i][j]][2]);
+					facesBatch->Vertex3f(vertices_array[Faces[i][j]][0],vertices_array[Faces[i][j]][1],vertices_array[Faces[i][j]][2]);
 				}
 			}
 			facesBatch->End();
@@ -315,20 +280,15 @@ void SpecialKeys(int key, int x, int y){
 void KeyPressFunc(unsigned char key, int x, int y){
 
 	if(key == 56)
-		objectFrame->RotateWorld(m3dDegToRad(9.0f), 1.0f, 0.0f, 0.0f);
-    
+		objectFrame->RotateWorld(m3dDegToRad(9.0f), 1.0f, 0.0f, 0.0f);    
 	if(key == 53)
 		objectFrame->RotateWorld(m3dDegToRad(-9.0f), 1.0f, 0.0f, 0.0f);
-	
 	if(key == 52)
 		objectFrame->RotateWorld(m3dDegToRad(9.0f), 0.0f, 1.0f, 0.0f);
-    
 	if(key == 54)
 		objectFrame->RotateWorld(m3dDegToRad(-9.0f), 0.0f, 1.0f, 0.0f);
-
 	if(key == 55)
 		objectFrame->RotateWorld(m3dDegToRad(1.5f), 0.0f, 0.0f, 1.0f);
-
 	if(key == 57)
 		objectFrame->RotateWorld(m3dDegToRad(-1.5f), 0.0f, 0.0f, 1.0f);
 
@@ -348,9 +308,9 @@ void KeyPressFunc(unsigned char key, int x, int y){
 			else x = 1, y = viewport_height/viewport_width;
 			for(int i = 0; i < nFaces; i++){
 				for(int j = 0; j < 3; j++){
-					t[0] = vertice_array[Faces[i][j]][0];
-					t[1] = vertice_array[Faces[i][j]][0];
-					t[2] = vertice_array[Faces[i][j]][0];
+					t[0] = vertices_array[Faces[i][j]][0];
+					t[1] = vertices_array[Faces[i][j]][1];
+					t[2] = vertices_array[Faces[i][j]][2];
 					m3dTransformVector3(texcoords[j], t, transformPipeline.GetModelViewMatrix());
 					/*纹理坐标规范化，坐标值范围为0.0到1.0*/
 					candide3.setTexCoords(Faces[i][j],(texcoords[j][0]/x+1)/2,(-texcoords[j][1]/y+1)/2);
@@ -374,6 +334,7 @@ void KeyPressFunc(unsigned char key, int x, int y){
 			M3DMatrix44f s;
 			m3dScaleMatrix44(s, 1.05, 1.05, 1.05);
 			m3dMatrixMultiply44(scaler,scaler,s);
+			modelViewMatrix.MultMatrix(s);
 			break;
 		case 1:
 			candide3.addSP(nSP,0.1);
@@ -388,7 +349,7 @@ void KeyPressFunc(unsigned char key, int x, int y){
 			break;
 		}
 		for (int i = 0; i < nVerts; i++){
-			candide3.getTransCoords(i,vertice_array[i]);
+			candide3.getTransCoords(i,vertices_array[i]);
 		}
 	}
 
@@ -399,6 +360,7 @@ void KeyPressFunc(unsigned char key, int x, int y){
 			M3DMatrix44f s;
 			m3dScaleMatrix44(s, 0.95, 0.95, 0.95);
 			m3dMatrixMultiply44(scaler,scaler,s);
+			modelViewMatrix.MultMatrix(s);
 			break;
 		case 1:
 			candide3.addSP(nSP,-0.1);
@@ -413,7 +375,7 @@ void KeyPressFunc(unsigned char key, int x, int y){
 			break;
 		}
 		for (int i = 0; i < nVerts; i++){
-			candide3.getTransCoords(i,vertice_array[i]);
+			candide3.getTransCoords(i,vertices_array[i]);
 		}
 	}
 
@@ -423,7 +385,7 @@ void KeyPressFunc(unsigned char key, int x, int y){
 		for (int i = 0; i<nVerts; i++){
 			candide3.getVertex(i,Vert);
 			candide3.setTransCoords(i,Vert);
-			vertice_array[i][0] = Vert[0], vertice_array[i][1] = Vert[1], vertice_array[i][2] = Vert[2];			
+			vertices_array[i][0] = Vert[0], vertices_array[i][1] = Vert[1], vertices_array[i][2] = Vert[2];			
 		}
 		m3dScaleMatrix44(scaler, 1, 1, 1);
 		objectFrame->SetOrigin(0,0,0);
@@ -447,7 +409,7 @@ void KeyPressFunc(unsigned char key, int x, int y){
 		M3DVector3f Vert;
 		for (int i = 0; i<nVerts; i++){
 			candide3.setTransCoords(i,Vert);
-			vertice_array[i][0] = Vert[0], vertice_array[i][1] = Vert[1], vertice_array[i][2] = Vert[2];
+			vertices_array[i][0] = Vert[0], vertices_array[i][1] = Vert[1], vertices_array[i][2] = Vert[2];
 		}
 
 	}
@@ -472,24 +434,18 @@ void KeyPressFunc(unsigned char key, int x, int y){
 	}
 
 	//移动光源位置。
-	if(key == 'd'){
+	if(key == 'd')
 		light_x += 0.1;
-	}
-	if(key == 'a'){
+	if(key == 'a')
 		light_x -= 0.1;
-	}
-	if(key == 'w'){
+	if(key == 'w')
 		light_y += 0.1;
-	}
-	if(key == 's'){
+	if(key == 's')
 		light_y -= 0.1;
-	}
-	if(key == 'q'){
+	if(key == 'q')
 		light_z += 0.1;
-	}
-	if(key == 'e'){
+	if(key == 'e')
 		light_z -= 0.1;
-	}
                 
     glutPostRedisplay();
 }
@@ -501,13 +457,29 @@ void ProcessMainMenu(int value){
 		menu = value;
 		break;
 	case 1:
-		candide3.loadTexImage("teximage");
+		open(candide3);
+		//读取顶点数据
+		nVerts = candide3.nVertex();
+		vertices_array = new M3DVector3f[nVerts];
+		for (int i = 0; i<nVerts; i++){
+			candide3.getTransCoords(i,vertices_array[i]);
+		}
+		//读取三角面片数据
+		nFaces =candide3.nFace(); 
+		Faces = new M3DVector3i[nFaces];
+		for (int i = 0; i<nFaces; i++)
+			candide3.getFace(i,Faces[i]);
+		//读取形变单元数据
+		candide3.applySP();
+		candide3.applyAP();
+		//重新渲染
+		glutPostRedisplay();
 		break;	
 	case 2:
+		save(candide3);
 		break;
 	case 3:
 		HeadPoseEstimation(landmarks, candide3, objectFrame, scaler);
-		cout<<"testing"<<endl;
 		glutPostRedisplay();
 		break;
 	default:;
@@ -559,61 +531,35 @@ void ProcessMeshDeformationMenu(int value){
 		case 1:{
 			ReadFileFFP("C:\\Users\\Administrator\\Desktop\\myFace100\\myFace100\\Resource Files\\facial feature points.txt", FFP_number, FFP_index, LM_index);
 
-			/*Mat FFP_array(2, FFP_number, CV_32F);
-			Mat LM_array(2, FFP_number, CV_32F);
-			Mat mesh_train(2, candide3.nVertex(), CV_32F);
-			Mat mesh_predict(2, candide3.nVertex(), CV_32F);*/
 			Mat FFP_array(FFP_number, 2, CV_32F);
 			Mat LM_array(FFP_number, 2, CV_32F);
 			Mat mesh_train(candide3.nVertex(), 2, CV_32F);
 			Mat mesh_predict(candide3.nVertex(), 2, CV_32F);
 
 			modelViewMatrix.PushMatrix();
-
-				M3DVector3f v,temp,t;
+				M3DVector3f v;
 				M3DMatrix44f mObjectFrame, imvp;
 				objectFrame->GetMatrix(mObjectFrame);
 				modelViewMatrix.MultMatrix(mObjectFrame);
 				modelViewMatrix.MultMatrix(scaler);
 				m3dInvertMatrix44(imvp, transformPipeline.GetModelViewProjectionMatrix());
+				//输入训练数据
 				for(int i = 0;i<FFP_number;i++){
-					/*FFP_array.at<float>(0,i) = Verts[FFP_index[i]*3+0];
-					FFP_array.at<float>(1,i) = Verts[FFP_index[i]*3+1];*/
-					/*temp[0] = Verts[FFP_index[i]*3+0];
-					temp[1] = Verts[FFP_index[i]*3+1];
-					temp[2] = Verts[FFP_index[i]*3+2];
-					m3dTransformVector3(t, temp, transformPipeline.GetModelViewMatrix());
-					FFP_array.at<float>(i,0) = t[0];
-					FFP_array.at<float>(i,1) = t[1];*/
-					///////////////////////////////////////////////////////
-					FFP_array.at<float>(i,0) = vertice_array[FFP_index[i]][0]; //
-					FFP_array.at<float>(i,1) = vertice_array[FFP_index[i]][1]; //
-					                                                    //
-					m3dTransformVector3(v, landmarks[LM_index[i]], imvp);//
-					LM_array.at<float>(i,0) = v[0];                      //
-					LM_array.at<float>(i,1) = v[1];                      //
-					/*LM_array.at<float>(i,0) = landmarks[LM_index[i]][0];
-					LM_array.at<float>(i,1) = landmarks[LM_index[i]][1];*/
+					//特征点训练数据
+					FFP_array.at<float>(i,0) = vertices_array[FFP_index[i]][0];
+					FFP_array.at<float>(i,1) = vertices_array[FFP_index[i]][1];
+					//先将landmark乘以modelview矩阵的逆矩阵，再输入landmark训练数据
+					m3dTransformVector3(v, landmarks[LM_index[i]], imvp);
+					LM_array.at<float>(i,0) = v[0];
+					LM_array.at<float>(i,1) = v[1];
 				}
-
-			//modelViewMatrix.PopMatrix();
-
+			modelViewMatrix.PopMatrix();
+			//输入待预测数据
 			for(int i = 0;i<candide3.nVertex();i++){
-				/*mesh_train.at<float>(0,i) = Verts[i*3+0];
-				mesh_train.at<float>(1,i) = Verts[i*3+1];*/
-				/*temp[0] = Verts[i*3+0];
-				temp[1] = Verts[i*3+1];
-				temp[2] = Verts[i*3+2];
-				m3dTransformVector3(t, temp, transformPipeline.GetModelViewMatrix());
-				mesh_train.at<float>(i,0) = t[0];
-				mesh_train.at<float>(i,1) = t[1];*/
-				//
-				mesh_train.at<float>(i,0) = vertice_array[i][0];
-				mesh_train.at<float>(i,1) = vertice_array[i][1];
-				/*For testing.
-				mesh_train.at<float>(2,i) = Verts[i*3+2];*/
+				mesh_train.at<float>(i,0) = vertices_array[i][0];
+				mesh_train.at<float>(i,1) = vertices_array[i][1];
 			}
-
+			//进行训练和预测
 			rbf.train(FFP_array, LM_array);
 			rbf.predict(mesh_train, mesh_predict);
 
@@ -626,35 +572,15 @@ void ProcessMeshDeformationMenu(int value){
 			model.predict(mesh_train, mesh_predict);*/
 			///////////////////////////////////////////////////////////////////////
 
-			cout<<endl;
 			for(int i = 0;i<candide3.nVertex();i++){
-				/*Verts[i*3+0] = mesh_predict.at<float>(0,i);
-				Verts[i*3+1] = mesh_predict.at<float>(1,i);*/
-				vertice_array[i][0] = mesh_predict.at<float>(i,0);
-				vertice_array[i][1] = mesh_predict.at<float>(i,1);
-
-				//cout<<Verts[FFP_index[i]*3+0]<<' '<<Verts[FFP_index[i]*3+1]<<endl;
+				vertices_array[i][0] = mesh_predict.at<float>(i,0);
+				vertices_array[i][1] = mesh_predict.at<float>(i,1);
 			}
-
 			for(int i = 0;i<FFP_number;i++){
-				vertice_array[FFP_index[i]][0] = LM_array.at<float>(i,0);
-				vertice_array[FFP_index[i]][1] = LM_array.at<float>(i,1);
-				//
-				/*Verts[FFP_index[i]*3+0] = landmarks[LM_index[i]][0];
-				Verts[FFP_index[i]*3+1] = landmarks[LM_index[i]][1];*/
+				vertices_array[FFP_index[i]][0] = LM_array.at<float>(i,0);
+				vertices_array[FFP_index[i]][1] = LM_array.at<float>(i,1);
 			}
 
-			/*for(int i = 0;i<candide3.nVertex();i++){
-				temp[0] = Verts[i*3+0];
-				temp[1] = Verts[i*3+1];
-				temp[2] = Verts[i*3+2];
-				m3dTransformVector3(t, temp, imvp);
-				Verts[i*3+0] = t[0];
-				Verts[i*3+1] = t[1];
-				Verts[i*3+2] = t[2];
-			}*/
-
-			modelViewMatrix.PopMatrix();//
 			glutPostRedisplay();
 			break;
 		}
@@ -664,25 +590,34 @@ void ProcessMeshDeformationMenu(int value){
 }
 
 void processMouse(int button, int state, int x, int y){
-	float xx =x, yy = y, mouse[2];
-	if(button == GLUT_LEFT_BUTTON && state == GLUT_DOWN){
-		if(viewport_width>=viewport_height){
-			mouse[0] = (2*xx - window_width)/window_height;
-			mouse[1] = 1 - 2*yy/window_height;
-			cout<<mouse[0]<<','<<mouse[1]<<endl;
-		}else{
-			mouse[0] = 2*xx/window_width - 1;
-			mouse[1] = (window_height-2*yy)/window_width;
-			cout<<mouse[0]<<','<<mouse[1]<<endl;
-		}
+	//x,y是窗口像素点坐标
+	float mouse[2];
+    float origin_x = (window_width - viewport_width*viewport_scaler)/2;   //视口左上角像素x坐标
+	float origin_y = (window_height - viewport_height*viewport_scaler)/2; //视口左上角像素y坐标
+	float xx = (x-origin_x)/viewport_scaler; 
+	float yy = (y-origin_y)/viewport_scaler;
+	mouse[0] = (2*xx-viewport_width)/viewport_width;    //视口像素转为视口坐标
+	mouse[1] = (viewport_height-2*yy)/viewport_height;  //视口像素转为视口坐标
 
-		float t[3];
+	if(button == GLUT_LEFT_BUTTON && state == GLUT_DOWN){
+		//左击鼠标，点击mesh顶点得到其对应索引
+		float v[3], t[3];
 		for(int i = 0; i < nVerts; i++){
-			t[0] = vertice_array[i][0];
-			t[1] = vertice_array[i][1];
-			t[2] = vertice_array[i][2];
-			if(findVertex(mouse[0],mouse[1],t))cout<<i<<endl;
+			v[0] = -vertices_array[i][0];//因为投影矩阵的关系，关于y轴反转
+			v[1] = vertices_array[i][1];
+			v[2] = vertices_array[i][2];
+			m3dTransformVector3(t, v, transformPipeline.GetModelViewProjectionMatrix());
+			if(pow(t[0]-mouse[0],2)+pow(t[1]-mouse[1],2)<0.001){
+				cout<<"vertex: "<<i<<endl;
+				break;
+			}
 		}
+		//左击鼠标，点击landmark点得到其对应索引
+		for(int i = 0; i<global_params.landmark_num; i++)
+			if(pow(pixels_landmarks[i][0]-xx,2)+pow(pixels_landmarks[i][1]-yy,2)<10){
+				cout<<"landmark: "<<i<<endl;
+				break;
+			}
 	}
 }
 
@@ -699,11 +634,11 @@ void ChangeSize(int w, int h)
 	float width_scaler = window_width/viewport_width; 
 	float height_scaler = window_height/viewport_height;
 
-	float scaler = width_scaler<height_scaler? width_scaler : height_scaler;
-    float x = (window_width - viewport_width*scaler)/2;
-	float y = (window_height - viewport_height*scaler)/2;
+	viewport_scaler = width_scaler<height_scaler? width_scaler : height_scaler;
+    float x = (window_width - viewport_width*viewport_scaler)/2;
+	float y = (window_height - viewport_height*viewport_scaler)/2;
 
-	glViewport(x, y, viewport_width*scaler, viewport_height*scaler);
+	glViewport(x, y, viewport_width*viewport_scaler, viewport_height*viewport_scaler);
 
 	//视口坐标为正投影坐标
 	//x: -ratio~ratio (-1~1)
@@ -761,8 +696,6 @@ int main(int argc, char* argv[]){
     glutSpecialFunc(SpecialKeys);
     glutDisplayFunc(RenderScene);
 
-	candide3.open("C:\\Users\\Administrator\\Desktop\\myFace100\\myFace100\\Resource Files\\candide3_all_triangles_ccw.wfm");
-
 	////////////////////////////////////////////////////////
 	//创建菜单
 	int SUMenu = glutCreateMenu(ProcessSUMenu);
@@ -796,18 +729,18 @@ int main(int argc, char* argv[]){
     glutAddSubMenu("Adjust SU",SUMenu);
 	glutAddSubMenu("Change AU",AUMenu);
 	glutAddSubMenu("render",RenderMenu);
-	glutAddMenuEntry("Load Texture Image",1);
-	glutAddMenuEntry("Select FFPs",2);
+	glutAddMenuEntry("Open wfm file",1);
+	glutAddMenuEntry("Save wfm file",2);  
 	glutAddMenuEntry("Head Pose Estimation",3);
 	glutAddSubMenu("Mesh Deformation",MeshDeformationMenu);
 
     glutAttachMenu(GLUT_RIGHT_BUTTON);
-	////////////////////////////////////////////////////////////
+	//////////////////////////////////
 
-    ////////////////////////////////////////////////////////////   
+    ////////////////////////////   
 	//鼠标操作
 	glutMouseFunc(processMouse);
-	///////////////////////////////////////////////////////////
+	////////////////////////////
 
 	GLenum err = glewInit();
 	if (GLEW_OK != err) {
