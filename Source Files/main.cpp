@@ -206,7 +206,7 @@ void RenderScene(void){
 		M3DMatrix44f mObjectFrame;
 		objectFrame->GetMatrix(mObjectFrame);
 		modelViewMatrix.MultMatrix(mObjectFrame);
-		modelViewMatrix.MultMatrix(scaler);
+		//modelViewMatrix.MultMatrix(scaler);
 
 		//是否渲染模型，0为渲染。
 		if(switch_model == 0){
@@ -300,7 +300,7 @@ void KeyPressFunc(unsigned char key, int x, int y){
 			M3DMatrix44f mObjectFrame;
 			objectFrame->GetMatrix(mObjectFrame);
 			modelViewMatrix.MultMatrix(mObjectFrame);
-			modelViewMatrix.MultMatrix(scaler);
+			//modelViewMatrix.MultMatrix(scaler);
 
 			GLfloat t[3];
 			float x, y;
@@ -331,10 +331,11 @@ void KeyPressFunc(unsigned char key, int x, int y){
 	if(key == 43){
 		switch(menu){
 		case 0:
-			M3DMatrix44f s;
-			m3dScaleMatrix44(s, 1.05, 1.05, 1.05);
-			m3dMatrixMultiply44(scaler,scaler,s);
-			modelViewMatrix.MultMatrix(s);
+			//M3DMatrix44f s;
+			//m3dScaleMatrix44(s, 1.05, 1.05, 1.05);
+			//m3dMatrixMultiply44(scaler,scaler,s);
+			//modelViewMatrix.MultMatrix(s);
+			modelViewMatrix.Scale(1.05,1.05,1.05);
 			break;
 		case 1:
 			candide3.addSP(nSP,0.1);
@@ -357,10 +358,11 @@ void KeyPressFunc(unsigned char key, int x, int y){
 	if(key == 45){
 		switch(menu){
 		case 0:
-			M3DMatrix44f s;
-			m3dScaleMatrix44(s, 0.95, 0.95, 0.95);
-			m3dMatrixMultiply44(scaler,scaler,s);
-			modelViewMatrix.MultMatrix(s);
+			//M3DMatrix44f s;
+			//m3dScaleMatrix44(s, 0.95, 0.95, 0.95);
+			//m3dMatrixMultiply44(scaler,scaler,s);
+			//modelViewMatrix.MultMatrix(s);
+			modelViewMatrix.Scale(0.95,0.95,0.95);
 			break;
 		case 1:
 			candide3.addSP(nSP,-0.1);
@@ -379,7 +381,7 @@ void KeyPressFunc(unsigned char key, int x, int y){
 		}
 	}
 
-	//清零,回到标准Candide-3模型
+	//按键0,清零,回到标准Candide-3模型
 	if(key == 48){
 		M3DVector3f Vert;
 		for (int i = 0; i<nVerts; i++){
@@ -387,30 +389,36 @@ void KeyPressFunc(unsigned char key, int x, int y){
 			candide3.setTransCoords(i,Vert);
 			vertices_array[i][0] = Vert[0], vertices_array[i][1] = Vert[1], vertices_array[i][2] = Vert[2];			
 		}
-		m3dScaleMatrix44(scaler, 1, 1, 1);
+		
 		objectFrame->SetOrigin(0,0,0);
 		objectFrame->SetForwardVector(0,0,-1);
 		objectFrame->SetUpVector(0,1,0);
-		//ap = 0;
+		
 		for(int i = 0; i < candide3.nSUs(); i++)
 			candide3.setSP(i,0);
-		//candide3.setAP(0,ap);candide3.applyAP();
 		for(int i = 0; i < candide3.nAUs(); i++)
 			candide3.setAP(i,0);
+		while(modelViewMatrix.GetLastError()!=GLT_STACK_UNDERFLOW)
+			modelViewMatrix.PopMatrix();
+		modelViewMatrix.LoadIdentity();
 	}
 
-	//回到初始位置和静态样貌
+	//按键1,回到初始位置和静态样貌
 	if(key == 49){
-		m3dScaleMatrix44(scaler, 1, 1, 1);
-		delete objectFrame; objectFrame = NULL;
-		objectFrame = new GLFrame;
+		
+		objectFrame->SetOrigin(0,0,0);
+		objectFrame->SetForwardVector(0,0,-1);
+		objectFrame->SetUpVector(0,1,0);
 
 		candide3.clearAP();
 		M3DVector3f Vert;
 		for (int i = 0; i<nVerts; i++){
-			candide3.setTransCoords(i,Vert);
+			candide3.getTransCoords(i,Vert);
 			vertices_array[i][0] = Vert[0], vertices_array[i][1] = Vert[1], vertices_array[i][2] = Vert[2];
 		}
+		while(modelViewMatrix.GetLastError()!=GLT_STACK_UNDERFLOW)
+			modelViewMatrix.PopMatrix();
+		modelViewMatrix.LoadIdentity();
 
 	}
 
@@ -479,7 +487,12 @@ void ProcessMainMenu(int value){
 		save(candide3);
 		break;
 	case 3:
-		HeadPoseEstimation(landmarks, candide3, objectFrame, scaler);
+		M3DMatrix44f s;
+		HeadPoseEstimation(landmarks, candide3, objectFrame, s);
+		while(modelViewMatrix.GetLastError()!=GLT_STACK_UNDERFLOW)
+			modelViewMatrix.PopMatrix();
+		modelViewMatrix.LoadIdentity();
+		modelViewMatrix.MultMatrix(s);
 		glutPostRedisplay();
 		break;
 	default:;
@@ -541,7 +554,7 @@ void ProcessMeshDeformationMenu(int value){
 				M3DMatrix44f mObjectFrame, imvp;
 				objectFrame->GetMatrix(mObjectFrame);
 				modelViewMatrix.MultMatrix(mObjectFrame);
-				modelViewMatrix.MultMatrix(scaler);
+				//modelViewMatrix.MultMatrix(scaler);
 				m3dInvertMatrix44(imvp, transformPipeline.GetModelViewProjectionMatrix());
 				//输入训练数据
 				for(int i = 0;i<FFP_number;i++){
@@ -650,7 +663,7 @@ void ChangeSize(int w, int h)
 		viewFrustum.SetOrthographic(-1,1,-1/ratio,1/ratio,-1.0f,1.0f);
 	
 	projectionMatrix.LoadMatrix(viewFrustum.GetProjectionMatrix());
-	modelViewMatrix.LoadIdentity();
+	//modelViewMatrix.LoadIdentity();
 }
 
 void TimeFunc(int value){
