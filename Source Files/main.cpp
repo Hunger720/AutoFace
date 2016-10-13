@@ -11,7 +11,6 @@
 
 #include "GLSetting.h"
 #include "model.h"
-#include "myTools.h"
 #include "VisualProcess.h"
 #include "RBF.h"
 #include "io.h"
@@ -72,6 +71,8 @@ M3DVector3f *landmarks;
 M3DVector3f *vertice_landmarks;
 M3DVector3f *vertice_test;
 
+M3DMatrix44f scaling;            //Scaling matrix of human face mesh.
+
 Model candide3;
 
 Mat frame;
@@ -97,8 +98,8 @@ int*   LM_index;               //index array of landmarks
 
 static float  viewport_aspect_ratio;  //视口宽高比（背景图片宽高比）
 static float  viewport_scaler;        //缩放比例，将背景图片缩放到视口大小
-static float  viewport_width;         //视口宽度（背景图片像素数）
-static float  viewport_height;        //视口高度（背景图片像素数）
+static float  viewport_width = 200;   //视口宽度（背景图片像素数）
+static float  viewport_height = 200;  //视口高度（背景图片像素数）
 static float  window_width;           //窗口宽度（窗口像素数）
 static float  window_height;          //窗口高度（窗口像素数）
 float  r;               //人脸旋转偏量
@@ -106,8 +107,6 @@ float  tx, ty;          //center of tracked face
 static float light_x;   //光源的位置，下同。
 static float light_y;
 static float light_z;
-
-point  t;               //人脸位移偏量
 
 FRAME_TYPE frame_type;
 
@@ -128,39 +127,8 @@ void SetupRC()
 	transformPipeline.SetMatrixStacks(modelViewMatrix, projectionMatrix);
 
 	objectFrame = new GLFrame;
+	m3dScaleMatrix44(scaling,1,1,1);
 
-	//AcquireFrame(frame,frame_type);//For debugging. Image file path is fixed.
-	//LoadTexture(frame,texture[BACKGROUND]);
-	//current_frame_update = true;
-
-	//ReadGlobalParamFromFile(modelPath+"LBF.model");
-
-	/*viewport_width = frame.cols;
-	viewport_height = frame.rows;
-	glutReshapeWindow(viewport_width,viewport_height);
-	loadBackground(viewport_width,viewport_height,background_batch);*/
-	//float x, y;
-	//if(viewport_width >= viewport_height)
-	//	x = viewport_width/viewport_height, y = 1;
-	//else
-	//	x = 1, y = viewport_height/viewport_width;
-
-	////Background Texture
-	//background_batch.Begin(GL_TRIANGLES,6,1);
-	//background_batch.MultiTexCoord2f(0,0.0f,0.0f);
- //   background_batch.Vertex3f(-x,y,-.5f);
-	//background_batch.MultiTexCoord2f(0,0.0f,1.0f);
- //   background_batch.Vertex3f(-x,-y,-.5f);
-	//background_batch.MultiTexCoord2f(0,1.0f,0.0f);
- //   background_batch.Vertex3f(x,y,-.5f);
-	//
-	//background_batch.MultiTexCoord2f(0,0.0f,1.0f);
- //   background_batch.Vertex3f(-x,-y,-.5f);
-	//background_batch.MultiTexCoord2f(0,1.0f,1.0f);
- //   background_batch.Vertex3f(x,-y,-.5f);
-	//background_batch.MultiTexCoord2f(0,1.0f,0.0f);
- //   background_batch.Vertex3f(x,y,-.5f);
-	//background_batch.End();
 }
 
 
@@ -172,34 +140,19 @@ void RenderScene(void){
 	// Clear the window with current clearing color
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 
-	//Should not be here./////////////////////////////////////////////////////////////////
-	//检测特征点                                                                        //
-	//if(current_frame_update == true){                                                   //
-	//	FaceDetectionAndAlignment(frame, pixels_landmarks);                             //
-	//	current_frame_update = false;                                                   //
-	//	                                                                                //
-	//	//landmarks的值从初始窗口像素点位置转换为视口坐标系位置（窗口像素点坐标与视口像素点坐标一致）                                 //
-	//	landmarks = new M3DVector3f[global_params.landmark_num];                        //
-	//	for(int i = 0; i<global_params.landmark_num; i++){                              //
-	//		landmarks[i][0] = (2*pixels_landmarks[i][0]-viewport_width)/viewport_width;  //
-	//		landmarks[i][1] = (viewport_height-2*pixels_landmarks[i][1])/viewport_height;//
-	//		landmarks[i][2] = pixels_landmarks[i][2];                                   //
-	//	}                                                                               //
-	//}/////////////////////////////////////////////////////////////////////////////////////
+	//是否显示背景图，0为显示。
+	if(switch_background == 0){
+		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+		shaderManager.UseStockShader(GLT_SHADER_TEXTURE_REPLACE, transformPipeline.GetProjectionMatrix(),0);//只乘以投影矩阵
+		background_batch.Draw();
+	}
 	
 	modelViewMatrix.PushMatrix();
-
-		//是否显示背景图，0为显示。
-		if(switch_background == 0){
-			shaderManager.UseStockShader(GLT_SHADER_TEXTURE_REPLACE, transformPipeline.GetProjectionMatrix(),0);
-			background_batch.Draw();
-		} 
-
 		//渲染模型前的矩阵变换。
 		M3DMatrix44f mObjectFrame;
 		objectFrame->GetMatrix(mObjectFrame);
 		modelViewMatrix.MultMatrix(mObjectFrame);
-
+		modelViewMatrix.MultMatrix(scaling);
 		//是否渲染模型，0为渲染。
 		if(switch_model == 0){
 			glBindTexture(GL_TEXTURE_2D,texture[1]);
@@ -226,19 +179,17 @@ void RenderScene(void){
 			//myUseShader();
 			facesBatch->Draw();
 		}
+	modelViewMatrix.PopMatrix();//清除模型的矩阵变换信息。 
 
-	modelViewMatrix.PopMatrix();//清除模型的矩阵变换信息。
+	//是否标识出landmarks，0为标识。
+	if(switch_landmarks == 0){
+		shaderManager.UseStockShader(GLT_SHADER_IDENTITY, vWhite);//不进行modelview和projection变换，直接渲染
+		landmarks_batch.Begin(GL_POINTS, global_params.landmark_num);
+		landmarks_batch.CopyVertexData3f(landmarks);
+		landmarks_batch.End();
+		landmarks_batch.Draw();
+	}
 
-		//是否标识出landmarks，0为标识。
-		if(switch_landmarks == 0){
-			shaderManager.UseStockShader(GLT_SHADER_IDENTITY, vWhite);//不进行modelview变换，直接渲染
-			landmarks_batch.Begin(GL_POINTS, global_params.landmark_num);
-			landmarks_batch.CopyVertexData3f(landmarks);
-			landmarks_batch.End();
-			landmarks_batch.Draw();
-		}
-
-	glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 	glBindTexture(GL_TEXTURE_2D,texture[BACKGROUND]);
 	// Flush drawing commands
 	glutSwapBuffers();
@@ -438,12 +389,21 @@ void KeyPressFunc(unsigned char key, int x, int y){
 
 ///////////////////////////////////////////////////////////////////////////////
 void ProcessMainMenu(int value){
+	M3DVector3f *v = new M3DVector3f[nVerts];
 	switch (value){
 	case 0:
 		menu = value;
 		break;
-	case 1:
+	case 1:  //从图片文件获取帧
 		AcquireFrame(frame,IMAGE);
+		LoadTexture(frame,texture[BACKGROUND]);
+		viewport_width = frame.cols;
+		viewport_height = frame.rows;
+		glutReshapeWindow(viewport_width,viewport_height);
+		loadBackground(viewport_width,viewport_height,background_batch);
+		break;
+	case 2:  //从摄像头获取帧
+		AcquireFrame(frame,CAMERA);
 		LoadTexture(frame,texture[BACKGROUND]);
 		viewport_width = frame.cols;
 		viewport_height = frame.rows;
@@ -451,25 +411,16 @@ void ProcessMainMenu(int value){
 		loadBackground(viewport_width,viewport_height,background_batch);
 		//current_frame_update = true;
 		break;
-	case 2:
-		AcquireFrame(frame,CAMERA);
-		LoadTexture(frame,texture[BACKGROUND]);
-		viewport_width = frame.cols;
-		viewport_height = frame.rows;
-		glutReshapeWindow(viewport_width,viewport_height);
-		loadBackground(viewport_width,viewport_height,background_batch);
-		current_frame_update = true;
-		break;
-	case 3:
+	case 3:  //检测人脸特征点
 		ReadGlobalParamFromFile(modelPath+"LBF.model");
-		FaceDetectionAndAlignment(frame, pixels_landmarks);
+		FaceDetectionAndAlignment(frame,pixels_landmarks);
 		//landmarks的值从初始窗口像素点位置转换为视口坐标系位置（窗口像素点坐标与视口像素点坐标一致）
 		if(landmarks != NULL) delete[] landmarks;
-		landmarks = new M3DVector3f[global_params.landmark_num];                        //
-		for(int i = 0; i<global_params.landmark_num; i++){                              //
-			landmarks[i][0] = (2*pixels_landmarks[i][0]-viewport_width)/viewport_width;  //
-			landmarks[i][1] = (viewport_height-2*pixels_landmarks[i][1])/viewport_height;//
-			landmarks[i][2] = pixels_landmarks[i][2];                                   //
+		landmarks = new M3DVector3f[global_params.landmark_num];
+		for(int i = 0; i<global_params.landmark_num; i++){
+			landmarks[i][0] = (2*pixels_landmarks[i][0]-viewport_width)/viewport_width;
+			landmarks[i][1] = (viewport_height-2*pixels_landmarks[i][1])/viewport_height;
+			landmarks[i][2] = pixels_landmarks[i][2];
 		}
 		glutPostRedisplay();
 		switch_landmarks = 0;
@@ -496,16 +447,27 @@ void ProcessMainMenu(int value){
 	case 5:
 		save(candide3);
 		break;
-	case 6:
-		myWriteMesh(vertices_array,Faces,nVerts,nFaces);
+	case 6:  //保存.off文件
+		float temp[3];
+		modelViewMatrix.PushMatrix();//
+		M3DMatrix44f mObjectFrame;
+		objectFrame->GetMatrix(mObjectFrame);
+		modelViewMatrix.MultMatrix(mObjectFrame);
+		modelViewMatrix.MultMatrix(scaling);
+		for(int i=0; i<nVerts; i++){
+			m3dTransformVector3(temp, vertices_array[i], transformPipeline.GetModelViewProjectionMatrix());
+			v[i][0] = temp[0];
+			v[i][1] = temp[1];
+			v[i][2] = temp[2];
+		}
+		modelViewMatrix.PopMatrix();//
+		myWriteMesh(v,Faces,nVerts,nFaces);
 		break;
-	case 7:
-		M3DMatrix44f s;
-		HeadPoseEstimation(landmarks, candide3, objectFrame, s);
+	case 7:  //Get the head pose information.
+		HeadPoseEstimation2(landmarks, candide3, objectFrame, scaling,transformPipeline.GetModelViewProjectionMatrix());
 		while(modelViewMatrix.GetLastError()!=GLT_STACK_UNDERFLOW)
 			modelViewMatrix.PopMatrix();
 		modelViewMatrix.LoadIdentity();
-		modelViewMatrix.MultMatrix(s);
 		glutPostRedisplay();
 		break;
 	default:;
@@ -567,6 +529,7 @@ void ProcessMeshDeformationMenu(int value){
 				M3DMatrix44f mObjectFrame, imvp;
 				objectFrame->GetMatrix(mObjectFrame);
 				modelViewMatrix.MultMatrix(mObjectFrame);
+				modelViewMatrix.MultMatrix(scaling);
 				m3dInvertMatrix44(imvp, transformPipeline.GetModelViewProjectionMatrix());
 				//输入训练数据
 				for(int i = 0;i<FFP_number;i++){
@@ -629,7 +592,7 @@ void processMouse(int button, int state, int x, int y){
 		M3DMatrix44f mObjectFrame;
 		objectFrame->GetMatrix(mObjectFrame);
 		modelViewMatrix.MultMatrix(mObjectFrame);
-		//左击鼠标，点击mesh顶点得到其对应索引
+		//左击鼠标，点击mesh vertex得到其对应索引
 		float v[3], t[3];
 		for(int i = 0; i < nVerts; i++){
 			v[0] = vertices_array[i][0];
@@ -637,7 +600,7 @@ void processMouse(int button, int state, int x, int y){
 			v[2] = vertices_array[i][2];
 			m3dTransformVector3(t, v, transformPipeline.GetModelViewProjectionMatrix());
 			if(pow(t[0]-mouse[0],2)+pow(t[1]-mouse[1],2)<0.001){
-				cout<<"vertex: "<<i<<endl;
+				cout<<"vertex: "<<i<<" ("<<t[0]<<','<<t[1]<<')'<<endl;
 				break;
 			}
 		}
@@ -645,7 +608,7 @@ void processMouse(int button, int state, int x, int y){
 		//左击鼠标，点击landmark点得到其对应索引
 		for(int i = 0; i<global_params.landmark_num; i++)
 			if(pow(pixels_landmarks[i][0]-xx,2)+pow(pixels_landmarks[i][1]-yy,2)<10){
-				cout<<"landmark: "<<i<<endl;
+				cout<<"landmark: "<<i<<" ("<<landmarks[i][0]<<','<<landmarks[i][1]<<')'<<endl;
 				break;
 			}
 	}
@@ -692,17 +655,7 @@ void TimeFunc(int value){
 // Main entry point for GLUT based programs
 int main(int argc, char* argv[]){
 
-	string frame_type_string;
-
-	cout<<"Please choose [load an image/capture from camera]:"<<endl;
-	cout<<"Input \"image\" for loading an image"<<endl;
-	cout<<"Input \"camera\" for capturing from camera"<<endl;
-	cout<<'>';
-	//cin>>frame_type_string;
-	//For debugging.	
-	cout<<"image"<<endl;
-	frame_type_string = "image";
-	//For debugging.
+	/*string frame_type_string;
 
 	if(frame_type_string=="image"){
 		frame_type = IMAGE;
@@ -712,7 +665,7 @@ int main(int argc, char* argv[]){
 	}else{
 		cerr<<"invalid input!"<<endl;
 		return -1;
-	}
+	}*/
 
 	gltSetWorkingDirectory(argv[0]);
 	
