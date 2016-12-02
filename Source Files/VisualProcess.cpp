@@ -10,19 +10,17 @@ using namespace cv;
 bool AcquireFrame(Mat &frame, FRAME_TYPE ftype){
 	if(ftype==IMAGE){
 		string path;
-		cout<<"Input image path: ";
 		//cin>>path;
-		//For debugging.
-		path = "C:\\Users\\Administrator\\Desktop\\myFace100\\myFace100\\Resource Files\\gakki.jpg";
-		cout<<path<<endl;
-		//For debugging.
+		path = "C:\\Users\\Administrator\\Desktop\\myFace100\\Resource Files\\face_woman.png";
 		
 		frame = imread(path);
 		if(frame.empty()){
 			cerr<<"Invalid image path!"<<endl;
 			return false;
+		}else{
+			cout<<"open file "<<path<<"succeeded.\n";
+			return true;
 		}
-		return true;
 	}else if(ftype==CAMERA){
 		VideoCapture vcap(0);
 		if(!vcap.isOpened()){
@@ -43,16 +41,16 @@ bool AcquireFrame(Mat &frame, FRAME_TYPE ftype){
 
 
 
-void HeadPoseEstimation2(M3DVector3f *landmarks,Model model, GLFrame* obj_frame, M3DMatrix44f &scaler, const M3DMatrix44f p){
+void HeadPoseEstimation(const M3DVector3f *landmarks, const Model& model, GLFrame* obj_frame, M3DMatrix44f &scaler, const M3DMatrix44f p){
 	float roll_angle = 0, s = 1;
 	float scaler_height = 1;  //高度缩放因子
 	float translation[2];
 	M3DVector3f facial_feature_points[3], temp;
 	M3DMatrix44f m;
 
-	obj_frame->SetOrigin(0,0,0);
-	obj_frame->SetForwardVector(0,0,-1);
-	obj_frame->SetUpVector(0,1,0);
+	obj_frame->SetOrigin(0.0f,0.0f,0.0f);
+	obj_frame->SetForwardVector(0.0f,0.0f,-1.0f);
+	obj_frame->SetUpVector(0.0f,1.0f,0.0f);
 
 
 	/*roll_angle = atan((landmarks[LM_OUTER_CORNER_OF_LEFT_EYE][1]-landmarks[LM_OUTER_CORNER_OF_RIGHT_EYE][1])/(landmarks[LM_OUTER_CORNER_OF_LEFT_EYE][0]-landmarks[LM_OUTER_CORNER_OF_RIGHT_EYE][0]));
@@ -89,5 +87,5 @@ void HeadPoseEstimation2(M3DVector3f *landmarks,Model model, GLFrame* obj_frame,
 	m3dTransformVector3(temp, landmarks[29], m);  //landmark点要先乘以投影矩阵的逆矩阵
 	translation[0] = temp[0] - facial_feature_points[0][0];
 	translation[1] = temp[1] - facial_feature_points[0][1];
-	obj_frame->TranslateWorld(translation[0], translation[1], 0);
+	obj_frame->TranslateWorld(translation[0], translation[1], 0.0f);
 }

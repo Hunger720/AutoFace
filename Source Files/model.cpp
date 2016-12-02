@@ -2,16 +2,17 @@
 #include "io.h"
 #include <fstream>
 
+using namespace std;
 
 Model::Model(){
-	VertexNum = 0;
-	FaceNum = 0;
+	n_vertice = 0;
+	n_faces = 0;
 	SUsNum = AUsNum = 0;
 	TexExist = false;
 };
 
 /////////////////////////////////////////////////////////////////////////////////////////////////
-void Model::open(const char *f){
+bool Model::open(const char *f){
 	int nVerts, nFaces;
 	int content = 0,            //数据的具体内容:1.顶点;2.平面;3.动态单元;4.静态单元;5.动态参数;6.静态参数;7.纹理数据;
 		te;
@@ -49,26 +50,34 @@ void Model::open(const char *f){
 			switch (content){
 
 			case 1:                           //读入顶点列表
-				file.getline(line,100);
-				nVerts = char2int(line);
+				file >> line;
+				nVerts = atoi(line);
 				vertex = new M3DVector3f[nVerts];
 				for(int i = 0; i < nVerts; i++){
-					file.getline(line,100);
-					char2vertex(line,vertex[i][0],vertex[i][1],vertex[i][2]);
+					file >> line;
+					vertex[i][0] = atof(line);
+					file >> line;
+					vertex[i][1] = atof(line);
+					file >> line;
+					vertex[i][2] = atof(line);
 				}
-				copyVertexData(nVerts,vertex);
+				copyVerticesData(nVerts,vertex);
 				content = 0;
 				break;
 
 			case 2:                           //读入平面列表
 				file.getline(line,100);
-				nFaces = char2int(line);
+				nFaces = atoi(line);
 				face = new M3DVector3i[nFaces];
 				for(int i = 0; i < nFaces; i++){
-					file.getline(line,100);
-					char2face(line,face[i][0],face[i][1],face[i][2]);
+					file >> line;
+					face[i][0] = atoi(line);
+					file >> line;
+					face[i][1] = atoi(line);
+					file >> line;
+					face[i][2] = atoi(line);
 				}
-				copyFaceData(nFaces,face);
+				copyFacesData(nFaces,face);
 				content = 0;
 				break;
 
@@ -79,7 +88,7 @@ void Model::open(const char *f){
 				Unit *AU;
 
 				file.getline(line,100);
-				AUNum = char2int(line);
+				AUNum = atoi(line);
 				
 				AU = new Unit[AUNum];
 				AUsName = new const char*[AUNum];
@@ -93,14 +102,20 @@ void Model::open(const char *f){
 					AUsName[i] = aname[i].data();
 					while(line[0] == '#')
 						file.getline(line,100);
-					nAU = char2int(line);
+					nAU = atoi(line);
 					AUIndex = new int[nAU];
 					AUStep = new M3DVector3f[nAU];
 			
 					AU[i].setNum(nAU);
 					for(int j = 0; j < nAU; j++){
-						file.getline(line,100);
-						char2UnitData(line,AUIndex[j],AUStep[j][0],AUStep[j][1],AUStep[j][2]);
+						file >> line;
+						AUIndex[j] = atoi(line);
+						file >> line;
+						AUStep[j][0] = atof(line);
+						file >> line;
+						AUStep[j][1] = atof(line);
+						file >> line;
+						AUStep[j][2] = atof(line);
 						AU[i].setIndex(j,AUIndex[j]);
 						AU[i].setStep(j,AUStep[j]);
 					}
@@ -121,7 +136,7 @@ void Model::open(const char *f){
 				Unit *SU;
 
 				file.getline(line,100);
-				SUNum = char2int(line);
+				SUNum = atoi(line);
 				
 				SU = new Unit[SUNum];
 				SUsName = new const char*[SUNum];
@@ -135,14 +150,20 @@ void Model::open(const char *f){
 					SUsName[i] = sname[i].data();
 					while(line[0] == '#')
 						file.getline(line,100);
-					nSU = char2int(line);
+					nSU = atoi(line);
 					SUIndex = new int[nSU];
 					SUStep = new M3DVector3f[nSU];
 			
 					SU[i].setNum(nSU);
 					for(int j = 0; j < nSU; j++){
-						file.getline(line,100);
-						char2UnitData(line,SUIndex[j],SUStep[j][0],SUStep[j][1],SUStep[j][2]);
+						file >> line;
+						SUIndex[j] = atoi(line);
+						file >> line;
+						SUStep[j][0] = atof(line);
+						file >> line;
+						SUStep[j][1] = atof(line);
+						file >> line;
+						SUStep[j][2] = atof(line);
 						SU[i].setIndex(j,SUIndex[j]);
 						SU[i].setStep(j,SUStep[j]);
 					}
@@ -152,14 +173,14 @@ void Model::open(const char *f){
 				//读取SUsName数据
 				for(int i = 0; i < SUNum; i++)
 					setSUsName(i,SUsName[i]);
-
+				
 				content = 0;
 				break;
 
 			case 5:
 				for(int i = 0; i < AUsNum; i++){
 					file.getline(line,100);
-					AP[i] = char2float(line);
+					AP[i] = atof(line);
 				}
 				content = 0;
 				break;
@@ -167,14 +188,14 @@ void Model::open(const char *f){
 			case 6:
 				for(int i = 0; i < SUsNum; i++){
 					file.getline(line,100);
-					SP[i] = char2float(line);
+					SP[i] = atof(line);
 				}
 				content = 0;
 				break;
 
 			case 7:                           //读纹理图片和纹理坐标
 				file.getline(line,100);
-				te = char2int(line);
+				te = atoi(line);
 				if(te == 1){
 					TexExist = true;
 					file.getline(line,100);
@@ -183,9 +204,9 @@ void Model::open(const char *f){
 				}
 				else TexExist = false;
 
-				for(int i = 0; i < VertexNum; i++){
+				for(int i = 0; i < n_vertice; i++){
 					file.getline(line,100);
-					char2TexCoord(line,TexCoords[i][0],TexCoords[i][1]);
+					char2TexCoord(line,texture_coordinates[i][0],texture_coordinates[i][1]);
 				}
 				content = 0;
 				break;
@@ -193,29 +214,32 @@ void Model::open(const char *f){
 			default:;
 			}
 		}while(t0.compare(line));             //读到文件尾
-
+		file.close();
+		cout<<"Read model succeeded."<<endl;
+		return true;
+	}else{
+		cerr<<"Read model error!"<<endl;
+		return false;
 	}
-
-	file.close();
 }
 
-void Model::write(const char *f){
+bool Model::write(const char *f){
 	ofstream file(f,ios::out);
 
 	if(file){
 		//写入Vertex数据
 		file<<"# VERTEX LIST:"<<endl;
-		file<<VertexNum<<endl;
-		for(int i = 0; i < VertexNum; i++){
-			file<<Vertex[i][0]<<' '<<Vertex[i][1]<<' '<<Vertex[i][2]<<endl;
+		file<<n_vertice<<endl;
+		for(int i = 0; i < n_vertice; i++){
+			file<<vertices[i][0]<<' '<<vertices[i][1]<<' '<<vertices[i][2]<<endl;
 		}
 		file<<endl<<endl;
 
 		//写入Face数据
 		file<<"# FACE LIST:"<<endl;
-		file<<FaceNum<<endl;
-		for(int i = 0; i < FaceNum; i++){
-			file<<Face[i][0]<<' '<<Face[i][1]<<' '<<Face[i][2]<<endl;
+		file<<n_faces<<endl;
+		for(int i = 0; i < n_faces; i++){
+			file<<faces[i][0]<<' '<<faces[i][1]<<' '<<faces[i][2]<<endl;
 		}
 		file<<endl<<endl;
 
@@ -264,32 +288,37 @@ void Model::write(const char *f){
 		file<<"# TEXTURE:"<<endl;
 		if(TexExist)file<<1<<endl<<TexImage<<endl;
 		else file<<0<<endl;
-		for(int i = 0; i < VertexNum; i++)
-			file<<TexCoords[i][0]<<' '<<TexCoords[i][1]<<endl;
+		for(int i = 0; i < n_vertice; i++)
+			file<<texture_coordinates[i][0]<<' '<<texture_coordinates[i][1]<<endl;
 		file<<endl;
 
 		file<<"# END OF FILE";
-	}
 
-	file.close();
+		file.close();
+		cout<<"Write model succeeded."<<endl;
+		return true;
+	}else{
+		cerr<<"Write model error!"<<endl;
+		return false;
+	}
 }
 
-void Model::copyVertexData(int vertexnum, M3DVector3f *vertex){
-	VertexNum = vertexnum;
-	Vertex = new M3DVector3f[VertexNum];
-	TransCoords = new M3DVector3f[VertexNum];
-	TexCoords = new M3DVector2f[VertexNum];
-	for(int i = 0; i < VertexNum; i++){
+void Model::copyVerticesData(int vertexnum, M3DVector3f *vertex){
+	n_vertice = vertexnum;
+	vertices = new M3DVector3f[n_vertice];
+	TransCoords = new M3DVector3f[n_vertice];
+	texture_coordinates = new M3DVector2f[n_vertice];
+	for(int i = 0; i < n_vertice; i++){
 		setVertex(i,vertex[i]);
 		setTransCoords(i,vertex[i]);
 		setTexCoords(i,0,0);
 	}
 }
 
-void Model::copyFaceData(int facenum, M3DVector3i *face){
-	FaceNum = facenum;
-	Face = new M3DVector3i[FaceNum];
-	for(int i = 0; i < FaceNum; i++)
+void Model::copyFacesData(int facenum, M3DVector3i *face){
+	n_faces = facenum;
+	faces = new M3DVector3i[n_faces];
+	for(int i = 0; i < n_faces; i++)
 		setFace(i,face[i]);
 }
 
@@ -339,11 +368,11 @@ bool Model::loadTexImage(const char *f){
 
 
 //////////////////////////////////////////////////////////////////////////////////////////////////
-void Model::getVertex(int n, M3DVector3f &vertex){
-	if(n<VertexNum){
-		vertex[0] = Vertex[n][0];
-		vertex[1] = Vertex[n][1];
-		vertex[2] = Vertex[n][2];
+void Model::getVertex(int n, M3DVector3f &vertex) const{
+	if(n<n_vertice){
+		vertex[0] = vertices[n][0];
+		vertex[1] = vertices[n][1];
+		vertex[2] = vertices[n][2];
 	}else{
 		vertex[0] = 0.0f;
 		vertex[1] = 0.0f;
@@ -352,7 +381,7 @@ void Model::getVertex(int n, M3DVector3f &vertex){
 }
 
 void Model::getTransCoords(int n, M3DVector3f &coord){
-	if(n<VertexNum){
+	if(n<n_vertice){
 		coord[0] = TransCoords[n][0];
 		coord[1] = TransCoords[n][1];
 		coord[2] = TransCoords[n][2];
@@ -364,9 +393,9 @@ void Model::getTransCoords(int n, M3DVector3f &coord){
 }
 
 void Model::getTexCoords(int n, float &x, float &y){
-	if(n<VertexNum){
-		x = TexCoords[n][0];
-		y = TexCoords[n][1];
+	if(n<n_vertice){
+		x = texture_coordinates[n][0];
+		y = texture_coordinates[n][1];
 	}else{
 		x = 0.0f;
 		y = 0.0f;
@@ -374,10 +403,10 @@ void Model::getTexCoords(int n, float &x, float &y){
 }
 
 void Model::getFace(int n, M3DVector3i &face){
-	if(n<FaceNum){
-		face[0] = Face[n][0];
-		face[1] = Face[n][1];
-		face[2] = Face[n][2];
+	if(n<n_faces){
+		face[0] = faces[n][0];
+		face[1] = faces[n][1];
+		face[2] = faces[n][2];
 	}else{
 		face[0] = 0;
 		face[1] = 0;
@@ -440,15 +469,15 @@ float Model::getAP(int n){
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////
 void Model::setVertex(int n, M3DVector3f vertex){
-	if(n<VertexNum){
-		Vertex[n][0] = vertex[0];
-		Vertex[n][1] = vertex[1];
-		Vertex[n][2] = vertex[2];
+	if(n<n_vertice){
+		vertices[n][0] = vertex[0];
+		vertices[n][1] = vertex[1];
+		vertices[n][2] = vertex[2];
 	}
 }
 
 void Model::setTransCoords(int n, M3DVector3f coord){
-	if(n<VertexNum){
+	if(n<n_vertice){
 		TransCoords[n][0] = coord[0];
 		TransCoords[n][1] = coord[1];
 		TransCoords[n][2] = coord[2];
@@ -456,17 +485,17 @@ void Model::setTransCoords(int n, M3DVector3f coord){
 }
 
 void Model::setTexCoords(int n, float x, float y){
-	if(n<VertexNum){
-		TexCoords[n][0] = x;
-		TexCoords[n][1] = y;
+	if(n<n_vertice){
+		texture_coordinates[n][0] = x;
+		texture_coordinates[n][1] = y;
 	}
 }
 
 void Model::setFace(int n, M3DVector3i face){
-	if(n<FaceNum){
-		Face[n][0] = face[0];
-		Face[n][1] = face[1];
-		Face[n][2] = face[2];
+	if(n<n_faces){
+		faces[n][0] = face[0];
+		faces[n][1] = face[1];
+		faces[n][2] = face[2];
 	}
 }
 
@@ -587,7 +616,7 @@ void Model::clearAP(){
 	for(int i = 0; i < AUsNum; i++)
 		setAP(i,0);
 
-	for(int j = 0; j < VertexNum; j++){
+	for(int j = 0; j < n_vertice; j++){
 		getVertex(j, orignal);
 		setTransCoords(j, orignal);
 	}
@@ -596,7 +625,7 @@ void Model::clearAP(){
 }
 
 //void Model::updateModel(){
-//	for(int i = 0; i < VertexNum; i++){
+//	for(int i = 0; i < n_vertice; i++){
 //		Vertex[i][0] = TransCoords[i][0];
 //		Vertex[i][1] = TransCoords[i][1];
 //		Vertex[i][2] = TransCoords[i][2];
@@ -604,14 +633,18 @@ void Model::clearAP(){
 //}
 
 
-////////////////////////////////////////////////////////////////////////////////////////////////////////
-Model::~Model(){
-	VertexNum = 0;
-	FaceNum = 0;
+///////////////////////////////////////////////////////
+void Model::clear(){
+	n_vertice = 0;
+	n_faces = 0;
 	SUsNum = 0;
 	AUsNum = 0;
-	delete Vertex; Vertex = NULL;
-	delete Face;   Face = NULL;
-	delete SU;     SU = NULL;
-	delete AU;     AU = NULL;
+	delete[] vertices; vertices = NULL;
+	delete[] faces;   faces = NULL;
+	delete[] SU;     SU = NULL;
+	delete[] AU;     AU = NULL;
+}
+
+Model::~Model(){
+	clear();
 }

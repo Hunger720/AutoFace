@@ -2,9 +2,7 @@
 
 #ifndef __OPENCV_HPP__
 #define __OPENCV_HPP__
-
 #include <opencv2/opencv.hpp>
-
 #endif
 
 
@@ -22,4 +20,4 @@ bool AcquireFrame(cv::Mat &frame, FRAME_TYPE ftype);
 ///<param name="translation">Parameter type is float[3], represents (x,y,z).</param>
 ///<param name="scaling">Parameter type is float[3], represents (Sx,Sy,Sz).</param>
 ///<returns>status</returns>
-void HeadPoseEstimation2(M3DVector3f *landmarks, Model model, GLFrame* obj_frame, M3DMatrix44f &scaler, const M3DMatrix44f p);
+void HeadPoseEstimation(const M3DVector3f *landmarks, const Model& model, GLFrame* obj_frame, M3DMatrix44f &scaler, const M3DMatrix44f p);

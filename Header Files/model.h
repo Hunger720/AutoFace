@@ -1,6 +1,8 @@
-#include <GLTools.h>
+#ifndef __MODEL_H__
+#define __MODEL_H__
 
-typedef int	M3DVector3i[3];
+#include <GLTools.h>
+#include "math3d.h"
 
 class Unit{  //静态单元和动态单元的数据结构
 
@@ -50,22 +52,22 @@ class Model{
 public:
 	Model();
 
-	inline int nVertex(){return VertexNum;};
-	inline int nFace(){return FaceNum;};
+	inline int nVertex()const {return n_vertice;}
+	inline int nFace(){return n_faces;};
 	inline int nSUs(){return SUsNum;};
 	inline int nAUs(){return AUsNum;};
 
-	void open(const char *file);                                  //读一个wfm文件
-	void write(const char *file);
-	void copyVertexData(int vertexnum, M3DVector3f *vertex);
-	void copyFaceData(int facenum, M3DVector3i *face);
+	bool open(const char *file);                                  //读一个wfm文件
+	bool write(const char *file);                                 //写一个wfm文件
+	void copyVerticesData(int vertexnum, M3DVector3f *vertex);
+	void copyFacesData(int facenum, M3DVector3i *face);
 	void copySUsData(int susnum, Unit *sus);
 	void copyAUsData(int ausnum, Unit *aus);
 	void copySPsData(int spnum, float *sps);
 	void copyAPsData(int apnum, float *aps);
     bool loadTexImage(const char *f);                             //载入纹理图片
 
-	void          getVertex(int n, M3DVector3f &vertex);
+	void          getVertex(int n, M3DVector3f &vertex) const;
 	void          getTransCoords(int n, M3DVector3f &coord);
 	void          getTexCoords(int n, float &x, float &y);
 	void          getFace(int n, M3DVector3i &face);
@@ -100,12 +102,13 @@ public:
 	void applyAP();             //TransCoords * AP → TransCoords
 	//void updateModel();
 
+	void clear();      //清空模型对象的所有数据
 	void clearAP();
 	~Model();
 
 private:
-	int          VertexNum;
-	int          FaceNum;
+	int          n_vertice;  //顶点数目
+	int          n_faces;    //三角形面数目
 	int          SUsNum;
 	int          AUsNum;
 
@@ -118,10 +121,10 @@ private:
 
 	bool         TexExist;          //纹理图片是否有效
 
-	M3DVector3f  *Vertex;
-	M3DVector3f  *TransCoords;
-	M3DVector3i  *Face;
-	M3DVector2f  *TexCoords;
+	M3DVector3f  *vertices;             //指向顶点数组
+	M3DVector3f  *TransCoords;  //
+	M3DVector3i  *faces;                //指向三角形面数组
+	M3DVector2f  *texture_coordinates;  //指向二维纹理坐标数组
 	Unit         *SU;
 	Unit         *AU;
 
@@ -131,4 +134,5 @@ private:
 void makeCandide3Model(Model &candide3);
 void makeSUs(Model &candide3);
 void makeAUs(Model &candide3);
-//void loadOrgans(char *file, int *organ);
+
+#endif
